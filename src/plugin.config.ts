@@ -2,19 +2,19 @@
  * Plugin configuration.
  */
 export default {
-    /**
-     * Custom element prefix, must be unique
-     */
-    ce_prefix: 'plugin-template',
-    identifier: 'org.username.plugin-template',
-    name: 'Cider Plugin Template',
-    description: 'A template for creating a Cider plugin.',
-    version: '0.0.1',
-    author: 'your_username',
-    repo: 'https://github.com/ciderapp/plugin-template',
-    entry: {
-        'plugin.js': {
-            type: 'main',
-        }
-    }
-}
+  /**
+   * Custom element prefix, must be unique
+   */
+  ce_prefix: "ciderjams",
+  identifier: "net.busybox11.ciderjams",
+  name: "Cider Jams",
+  description: "A simple listening session sharing plugin",
+  version: "0.0.1",
+  author: "busybox11",
+  repo: "https://github.com/busybox11/ciderjams",
+  entry: {
+    "plugin.js": {
+      type: "main",
+    },
+  },
+};
