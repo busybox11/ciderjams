@@ -31,7 +31,7 @@ const buttonAction = async () => {
 
 <template>
   <div class="plugin-base">
-    Hello world!
+    Hello world! this is a test
     <br />
     <button class="c-btn primary" @click="buttonAction">
       click to play album

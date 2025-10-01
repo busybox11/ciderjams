@@ -9,6 +9,7 @@ import {
   useCider,
   useMusicKit,
 } from "@ciderapp/pluginkit";
+import { devtools } from "@vue/devtools";
 import { createPinia } from "pinia";
 import type { App } from "vue";
 import { defineCustomElement } from "vue";
@@ -19,6 +20,11 @@ import MySettings from "./components/MySettings.vue";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
 import PluginConfig from "./plugin.config";
+
+if (import.meta.env.VITE_WITH_VUE_DEVTOOLS === "true") {
+  console.log("Connecting to vue devtools");
+  devtools.connect("localhost", 8098);
+}
 
 /**
  * Initializing a Vue app instance so we can use things like Pinia.

@@ -1,12 +1,12 @@
-import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
+import { defineConfig } from "vite";
 import cssInjectedByJsPlugin from "vite-plugin-css-injected-by-js";
-import tsconfigPaths from 'vite-tsconfig-paths'
-import { stringify } from 'yaml'
+import tsconfigPaths from "vite-tsconfig-paths";
+import { stringify } from "yaml";
 
-const packageJson = require('./package.json')
-const config = require('./src/plugin.config');
+const packageJson = require("./package.json");
+const config = require("./src/plugin.config");
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -23,44 +23,44 @@ export default defineConfig({
     vue({
       template: {
         compilerOptions: {
-          isCustomElement: (tag) => tag.startsWith('cider-'),
+          isCustomElement: (tag) => tag.startsWith("cider-"),
         },
       },
     }),
     {
       async buildStart(options) {
-        console.log('Building plugin...')
+        console.log("Building plugin...");
         // create a plugin.json in assets
         this.emitFile({
-          fileName: 'plugin.yml',
-          type: 'asset',
+          fileName: "plugin.yml",
+          type: "asset",
           source: stringify(config.default),
         });
       },
-    }
+    },
   ],
   build: {
     outDir: `dist/`,
-    minify: 'esbuild',
+    minify: "esbuild",
     lib: {
-      entry: 'src/main.ts',
-      fileName: 'plugin',
-      formats: ['es'],
+      entry: "src/main.ts",
+      fileName: "plugin",
+      formats: ["es"],
     },
-    target: ['es2020', 'chrome108'],
+    target: ["es2020", "chrome108"],
   },
   server: {
     port: 3058,
-    host: '127.0.0.1',
+    host: "127.0.0.1",
     cors: true,
   },
   define: {
-    'process.env': JSON.stringify({
-      cider: '2',
+    "process.env": JSON.stringify({
+      cider: "2",
     }),
-    'cplugin': {
-      ce_prefix: packageJson?.plugin?.ce_prefix || 'mce',
-      identifier: packageJson?.plugin?.identifier || 'mce',
+    cplugin: {
+      ce_prefix: packageJson?.plugin?.ce_prefix || "mce",
+      identifier: packageJson?.plugin?.identifier || "mce",
     },
-  }
-})
+  },
+});
