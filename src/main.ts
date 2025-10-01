@@ -11,10 +11,10 @@ import {
 } from "@ciderapp/pluginkit";
 import { devtools } from "@vue/devtools";
 import { createPinia } from "pinia";
-import type { App } from "vue";
-import { defineCustomElement } from "vue";
+import { type App, defineCustomElement } from "vue";
 import ComponentBasedModal from "./components/ComponentBasedModal.vue";
 import HelloWorld from "./components/HelloWorld.vue";
+import MenuIndicator from "./components/MenuIndicator.vue";
 import ModalExample from "./components/ModalExample.vue";
 import MySettings from "./components/MySettings.vue";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
@@ -42,6 +42,10 @@ function configureApp(app: App) {
  * Custom Elements that will be registered in the app
  */
 export const CustomElements = {
+  "menu-indicator": defineCustomElement(MenuIndicator, {
+    shadowRoot: false,
+    configureApp,
+  }),
   "hello-world": defineCustomElement(HelloWorld, {
     /**
      * Disabling the shadow root DOM so that we can inject styles from the DOM
@@ -65,6 +69,33 @@ export const CustomElements = {
     shadowRoot: false,
     configureApp,
   }),
+};
+
+/**
+ * Menu item injector from addCustomButton API
+ */
+const createMenuItemIndicator = () => {
+  const menuItems = window.document.body.querySelectorAll(
+    `[sfc-name="PluginBaseButton"] > div.chrome-button-content`
+  );
+  // Find menu item with `${plugin.identifier}-chrome-top-right-icon`
+  const menuItem = Array.from(menuItems).find(
+    (item) => item.textContent === `${plugin.identifier}-chrome-top-right-icon`
+  );
+  console.log("menuItems", menuItems);
+  if (menuItem) {
+    const indicator = document.createElement(
+      customElementName("menu-indicator")
+    );
+    indicator.id = `${plugin.identifier}-chrome-top-right-icon-indicator`;
+
+    // Remove content of menuItem
+    menuItem.innerHTML = "";
+    menuItem.appendChild(indicator);
+
+    return true; // Indicate that the element was found and indicator created
+  }
+  return false; // Indicate that the element was not found
 };
 
 /**
@@ -143,11 +174,32 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
 
       // Here we add a custom button to the top right of the chrome
       addCustomButton({
-        element: "♥",
+        element: `${plugin.identifier}-chrome-top-right-icon`,
         location: "chrome-top/right",
         title: "Cider Jams",
+        ctxMenuElement: customElementName("hello-world"),
         menuElement: customElementName("hello-world"),
       });
+      // Wait for the menu custom button to be created
+      // then inject our custom vue component
+      if (!createMenuItemIndicator()) {
+        const observer = new MutationObserver((_mutations, obs) => {
+          if (createMenuItemIndicator()) {
+            obs.disconnect(); // Disconnect once the element is found and indicator created
+          }
+        });
+
+        const appToolbar = window.document.body.querySelector(
+          `[sfc-name="QToolbar"]`
+        );
+        if (appToolbar) {
+          // Start observing the body for childList changes
+          observer.observe(appToolbar, {
+            childList: true,
+            subtree: true,
+          });
+        }
+      }
 
       addMediaItemContextMenuEntry({
         label: "Send to plugin",
