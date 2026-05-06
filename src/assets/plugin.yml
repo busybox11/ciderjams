@@ -1,8 +1,8 @@
-identifier: sh.cider.plugin-template-wip
-name: Example Plugin
-description: Shows off some of the working plugin API draft
-author: ciderapp
-repo: https://github.com/ciderapp/plugin-template-wip
+identifier: com.busybox11.ciderjams
+name: Cider Jams
+description: A simple listening session sharing plugin
+author: busybox11
+repo: https://github.com/busybox11/ciderjams
 entry:
   "plugin.js":
     type: main
