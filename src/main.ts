@@ -11,7 +11,7 @@ import {
 } from "@ciderapp/pluginkit";
 import { devtools } from "@vue/devtools";
 import { createPinia } from "pinia";
-import { type App, defineCustomElement } from "vue";
+import { type App, defineCustomElement, h, render } from "vue";
 import ComponentBasedModal from "./components/ComponentBasedModal.vue";
 import HelloWorld from "./components/HelloWorld.vue";
 import MenuIndicator from "./components/MenuIndicator.vue";
@@ -37,6 +37,39 @@ const pinia = createPinia();
 function configureApp(app: App) {
   app.use(pinia);
 }
+
+// Instead of relying on $nextTick or manual mutation observer, use the 'updated' hook
+function injectCustomDOMElement(component: any) {
+  const definition = component.$.type;
+  if (definition.__name === "AMQueueItem") {
+    const el: HTMLElement = component.$el;
+    if (el && !(el as any).__customDomInjected) {
+      const metadataEl = el.querySelector(".queue-item-actions");
+      if (metadataEl && el.children.length > 0) {
+        el.style.gridTemplateColumns = "48px 1fr auto auto";
+        const newElement = document.createElement("div");
+        newElement.innerHTML =
+          '<img src="https://cdn.discordapp.com/avatars/750770863418376216/f20db21adc47f1c0d92bba4042ae8aef.webp?size=240" alt="Member 3" style="width: 1.5rem; height: 1.5rem; border-radius: 50%; display: flex; margin-left: 0.5rem;" />';
+        metadataEl.insertAdjacentElement("afterend", newElement);
+        // Attach custom property using a type-safe cast
+        (el as any).__customDomInjected = true;
+      }
+    }
+  }
+}
+
+// Register using a mixin with the 'updated' hook so that DOM is in its latest state
+window.CiderApp.app.mixin({
+  updated() {
+    injectCustomDOMElement(this);
+  },
+});
+
+window.CiderApp.app.mixin({
+  mounted() {
+    injectCustomDOMElement(this);
+  },
+});
 
 /**
  * Custom Elements that will be registered in the app
@@ -71,32 +104,44 @@ export const CustomElements = {
   }),
 };
 
-/**
- * Menu item injector from addCustomButton API
- */
-const createMenuItemIndicator = () => {
-  const menuItems = window.document.body.querySelectorAll(
-    `[sfc-name="PluginBaseButton"] > div.chrome-button-content`
-  );
-  // Find menu item with `${plugin.identifier}-chrome-top-right-icon`
-  const menuItem = Array.from(menuItems).find(
-    (item) => item.textContent === `${plugin.identifier}-chrome-top-right-icon`
-  );
-  console.log("menuItems", menuItems);
-  if (menuItem) {
-    const indicator = document.createElement(
-      customElementName("menu-indicator")
-    );
-    indicator.id = `${plugin.identifier}-chrome-top-right-icon-indicator`;
-
-    // Remove content of menuItem
-    menuItem.innerHTML = "";
-    menuItem.appendChild(indicator);
-
-    return true; // Indicate that the element was found and indicator created
-  }
-  return false; // Indicate that the element was not found
+const PLUGIN_CONSTANTS = {
+  MENU_BTN_INJECTOR_ID: `cider-jams-menu-btn-injector`,
 };
+
+const PluginBaseButton = window.__PLUGINSYS__.App.Components.PluginBaseButton;
+const originalMounted = PluginBaseButton.mounted;
+PluginBaseButton.mounted = function () {
+  if (originalMounted) originalMounted.call(this);
+  injectComponent(this);
+};
+
+const originalUpdated = PluginBaseButton.updated;
+PluginBaseButton.updated = function () {
+  if (originalUpdated) originalUpdated.call(this);
+  injectComponent(this);
+};
+
+function injectComponent(component: any) {
+  const vnodeElement = component.$?.vnode?.el;
+
+  if (vnodeElement) {
+    if (vnodeElement.innerText === PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID) {
+      const vnode = h(MenuIndicator);
+      vnode.appContext = window.__PLUGINSYS__.App.vue._context;
+      render(vnode, vnodeElement);
+
+      // use display: none on current children, append the vnode to the end
+      const children = vnodeElement.children;
+      for (const child of children) {
+        // skip our own vnode
+        if (child === vnode.el) continue;
+        child.style.display = "none";
+      }
+      vnodeElement.appendChild(vnode.el);
+      vnodeElement.style.marginRight = "1rem";
+    }
+  }
+}
 
 /**
  * Defining the plugin context
@@ -120,7 +165,7 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
         defineCustomElement(MySettings, {
           shadowRoot: false,
           configureApp,
-        })
+        }),
       );
 
       /**
@@ -145,7 +190,7 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
             escClose: true,
           });
           const content = document.createElement(
-            customElementName("modal-example")
+            customElementName("modal-example"),
           );
           // @ts-ignore
           content._props.closeFn = closeDialog;
@@ -174,32 +219,12 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
 
       // Here we add a custom button to the top right of the chrome
       addCustomButton({
-        element: `${plugin.identifier}-chrome-top-right-icon`,
+        element: PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
         location: "chrome-top/right",
         title: "Cider Jams",
         ctxMenuElement: customElementName("hello-world"),
         menuElement: customElementName("hello-world"),
       });
-      // Wait for the menu custom button to be created
-      // then inject our custom vue component
-      if (!createMenuItemIndicator()) {
-        const observer = new MutationObserver((_mutations, obs) => {
-          if (createMenuItemIndicator()) {
-            obs.disconnect(); // Disconnect once the element is found and indicator created
-          }
-        });
-
-        const appToolbar = window.document.body.querySelector(
-          `[sfc-name="QToolbar"]`
-        );
-        if (appToolbar) {
-          // Start observing the body for childList changes
-          observer.observe(appToolbar, {
-            childList: true,
-            subtree: true,
-          });
-        }
-      }
 
       addMediaItemContextMenuEntry({
         label: "Send to plugin",
@@ -222,13 +247,13 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
         "nowPlayingItemWillChange",
         ({ item }: { item: MusicKit.MediaItem }) => {
           console.log("Now playing item will change", item);
-        }
+        },
       );
       musickit.addEventListener(
         "nowPlayingItemDidChange",
         ({ item }: { item: MusicKit.MediaItem }) => {
           console.log("Now playing item", item);
-        }
+        },
       );
     },
   });
