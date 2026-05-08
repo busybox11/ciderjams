@@ -34,6 +34,10 @@ const leaveSession = () => {
       </button>
 
       <div class="ciderjams-icon-buttons">  
+        <div class="ciderjams-room-code-container">
+          <small>Room code</small>
+        <span class="ciderjams-room-code">{{ currentJam?.code }}</span>
+      </div>
         <button class="ciderjams-icon-button">
           <CComponent
             name="NIcon"
@@ -133,6 +137,29 @@ p {
   align-items: center;
   gap: 0.75rem;
   margin-left: auto;
+}
+
+.ciderjams-room-code-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.ciderjams-room-code-container small {
+  font-size: 0.625rem;
+  line-height: 0.8;
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.ciderjams-room-code {
+  color: #ffffff;
+  line-height: 1;
+  opacity: 0.75;
+
+  font-family: monospace;
 }
 
 .ciderjams-icon-button {
