@@ -91,9 +91,13 @@ registerInjector({
     !!el.querySelector(".queue-item-actions") &&
     el.children.length > 0,
 
-  inject(_component, el) {
+  inject(component, el) {
+    const amMediaItem = component.$?.props?.item;
+
     el.style.gridTemplateColumns = "48px 1fr auto auto";
-    mountInto(QueueItemUser, el);
+    mountInto(QueueItemUser, el, undefined, {
+      item: amMediaItem,
+    });
   },
 });
 

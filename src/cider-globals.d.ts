@@ -1,5 +1,6 @@
 /// <reference path="../node_modules/@ciderapp/pluginkit/build/api/ciderapi-types/index.d.ts" />
 /// <reference path="../node_modules/@ciderapp/pluginkit/build/api/ciderapi-types/window.d.ts" />
+/// <reference path="../node_modules/@types/musickit/types/index.d.ts" />
 
 declare global {
   interface Window {

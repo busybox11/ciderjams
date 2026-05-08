@@ -81,12 +81,17 @@ export function registerInjector(injector: Injector) {
  * mounts a Vue `component` as a child of `host`, reusing the plugin's app
  * context so global plugins (Pinia, etc.) remain available
  */
-export function mountInto(
-  component: Component,
-  host: HTMLElement,
-  appContext?: AppContext,
-) {
-  const vnode = h(component);
+export function mountInto<
+  T extends Component,
+  // try to infer props type from component
+  // vue components in TS often have a `__props` property (defineProps/defineComponent)
+  P = T extends { __props?: infer Props }
+    ? Props
+    : T extends new (...args: any) => { $props: infer Props2 }
+      ? Props2
+      : Record<string, any>,
+>(component: T, host: HTMLElement, appContext?: AppContext, props?: P) {
+  const vnode = h(component, props ?? {});
   // @ts-ignore: appContext is internal but writable
   vnode.appContext = appContext ?? window.__PLUGINSYS__.App.vue._context;
   render(vnode, host);
