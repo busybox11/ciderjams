@@ -1,48 +1,27 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
+import { useJamStore } from "../../stores/main";
+
+const jamStore = useJamStore();
+
+const currentJam = computed(() => jamStore.currentJam);
 
 const leaveSession = () => {
-  const queueListDOM = document.body.querySelector('.queue-item-list');
-  if (queueListDOM) {
-    const queueItems = queueListDOM.querySelectorAll('.queue-item');
-    queueItems.forEach(item => {
-      const itemMetadataEl = item.querySelector('.queue-item-metadata');
-      if (itemMetadataEl) {
-        // add element after this one
-        const newElement = document.createElement('div');
-        newElement.innerHTML = '<img src="https://cdn.discordapp.com/avatars/750770863418376216/f20db21adc47f1c0d92bba4042ae8aef.webp?size=240" alt="Member 3" style="width: 1.5rem; height: 1.5rem; border-radius: 50%;" />';
-        itemMetadataEl.after(newElement);
-      }
-    });
-  }
+  jamStore.currentJam = null;
 }
 </script>
 
 <template>
   <div class="plugin-base">
     <h3 class="ciderjams-title">Listening session</h3>
-    <p class="ciderjams-session-info">Connected - 3 members</p>
+    <p class="ciderjams-session-info">Connected - {{ currentJam?.members.length }} members</p>
 
     <div class="ciderjams-session-members">
-      <div class="ciderjams-session-member">
-        <img src="https://avatars.githubusercontent.com/u/29630035" alt="Member 1" />
+      <div class="ciderjams-session-member" v-for="member in currentJam?.members" :key="member.id">
+        <img :src="member.avatar" :alt="member.name" />
         <div class="ciderjams-session-member-info">
-          <p class="ciderjams-session-member-name">rain capsule</p>
-          <p class="ciderjams-session-member-username">@raincapsule</p>
-        </div>
-      </div>
-      <div class="ciderjams-session-member">
-        <img src="https://pbs.twimg.com/profile_images/2010692334107684864/dQBcFxyj_400x400.jpg" alt="Member 2" />
-        <div class="ciderjams-session-member-info">
-          <p class="ciderjams-session-member-name">breyy</p>
-          <p class="ciderjams-session-member-username">@pouler</p>
-        </div>
-      </div>
-      <div class="ciderjams-session-member">
-        <img src="https://cdn.discordapp.com/avatars/750770863418376216/f20db21adc47f1c0d92bba4042ae8aef.webp?size=240" alt="Member 3" />
-        <div class="ciderjams-session-member-info">
-          <p class="ciderjams-session-member-name">Hortense</p>
-          <p class="ciderjams-session-member-username">@hotrans</p>
+          <p class="ciderjams-session-member-name">{{ member.name }}</p>
+          <p class="ciderjams-session-member-username">@{{ member.username }}</p>
         </div>
       </div>
     </div>

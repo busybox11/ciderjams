@@ -1,18 +1,25 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { defineStore } from "pinia";
+import { ref } from "vue";
 
-// You can name the return value of `defineStore()` anything you want,
-// but it's best to use the name of the store and surround it with `use`
-// and `Store` (e.g. `useUserStore`, `useCartStore`, `useProductStore`)
-// the first argument is a unique id of the store across your application
-export const useMainStore = defineStore('main-store', () => {
+interface JamMember {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+  isOwner: boolean;
+}
 
-  const count = ref(1);
+interface Jam {
+  id: string;
+  name: string;
+  code: string;
+  members: JamMember[];
+}
 
-  const doubled = computed(() => count.value * 2);
+export const useJamStore = defineStore("jam-store", () => {
+  const currentJam = ref<Jam | null>(null);
 
   return {
-    count,
-    doubled,
-  }
-})
+    currentJam,
+  };
+});

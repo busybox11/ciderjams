@@ -128,18 +128,12 @@ function injectComponent(component: any) {
 
   if (vnodeElement) {
     if (vnodeElement.innerText === PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID) {
-      const vnode = h(MenuIndicator);
-      vnode.appContext = window.__PLUGINSYS__.App.vue._context;
-      render(vnode, vnodeElement);
-
-      // use display: none on current children, append the vnode to the end
-      const children = vnodeElement.children;
-      for (const child of children) {
-        // skip our own vnode
-        if (child === vnode.el) continue;
+      for (const child of vnodeElement.children) {
         child.style.display = "none";
       }
-      vnodeElement.appendChild(vnode.el);
+
+      const el = document.createElement(customElementName("menu-indicator"));
+      vnodeElement.appendChild(el);
       vnodeElement.style.marginRight = "1rem";
     }
   }

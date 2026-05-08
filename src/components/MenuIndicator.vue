@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
+import { useJamStore } from "../stores/main";
+
+const jamStore = useJamStore();
+
+const currentJamOwner = computed(() => jamStore.currentJam?.members.find((member) => member.isOwner));
 </script>
 
 <template>
-  <div class="menu-indicator">
+  <div class="menu-indicator" :class="{ 'active': currentJamOwner }">
     <CComponent
       name="NIcon"
       :componentProps="{
@@ -11,7 +16,7 @@ import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
       }"
     />
 
-    <img src="https://avatars.githubusercontent.com/u/29630035" class="menu-indicator-avatar" />
+    <img :src="currentJamOwner?.avatar" class="menu-indicator-avatar" v-if="currentJamOwner" />
   </div>
 </template>
 

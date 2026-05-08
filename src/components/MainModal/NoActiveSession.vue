@@ -1,5 +1,39 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
+import { useJamStore } from "../../stores/main";
+
+const jamStore = useJamStore();
+
+const createJam = () => {
+  jamStore.currentJam = {
+    id: "1",
+    name: "My Jam",
+    code: "123456",
+    members: [
+      {
+        id: "1",
+        name: "rain capsule",
+        username: "raincapsule",
+        avatar: "https://avatars.githubusercontent.com/u/29630035",
+        isOwner: true,
+      },
+      {
+        id: "2",
+        name: "breyy",
+        username: "pouler",
+        avatar: "https://pbs.twimg.com/profile_images/2010692334107684864/dQBcFxyj_400x400.jpg",
+        isOwner: false,
+      },
+      {
+        id: "3",
+        name: "Hortense",
+        username: "hotrans",
+        avatar: "https://cdn.discordapp.com/avatars/750770863418376216/f20db21adc47f1c0d92bba4042ae8aef.webp?size=240",
+        isOwner: false,
+      },
+    ],
+  };
+};
 </script>
 
 <template>
@@ -10,7 +44,7 @@ import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
     <hr class="ciderjams-divider" />
 
     <div class="ciderjams-buttons">
-      <button class="c-btn primary" @click="">
+      <button class="c-btn primary" @click="createJam">
         Create session
       </button>
       <button class="c-btn primary" @click="">
