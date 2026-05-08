@@ -17,6 +17,7 @@ import HelloWorld from "./components/HelloWorld.vue";
 import MenuIndicator from "./components/MenuIndicator.vue";
 import ModalExample from "./components/ModalExample.vue";
 import MySettings from "./components/MySettings.vue";
+import QueueItemUser from "./components/QueueItemUser.vue";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
 import PluginConfig from "./plugin.config";
@@ -47,11 +48,12 @@ function injectCustomDOMElement(component: any) {
       const metadataEl = el.querySelector(".queue-item-actions");
       if (metadataEl && el.children.length > 0) {
         el.style.gridTemplateColumns = "48px 1fr auto auto";
-        const newElement = document.createElement("div");
-        newElement.innerHTML =
-          '<img src="https://cdn.discordapp.com/avatars/750770863418376216/f20db21adc47f1c0d92bba4042ae8aef.webp?size=240" alt="Member 3" style="width: 1.5rem; height: 1.5rem; border-radius: 50%; display: flex; margin-left: 0.5rem;" />';
-        metadataEl.insertAdjacentElement("afterend", newElement);
-        // Attach custom property using a type-safe cast
+
+        const userElement = h(QueueItemUser);
+        userElement.appContext = window.__PLUGINSYS__.App.vue._context;
+        render(userElement, el);
+        el.appendChild(userElement.el);
+
         (el as any).__customDomInjected = true;
       }
     }
