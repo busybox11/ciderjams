@@ -1,9 +1,5 @@
 import {
   addCustomButton,
-  addImmersiveMenuEntry,
-  addMainMenuEntry,
-  addMediaItemContextMenuEntry,
-  createModal,
   definePluginContext,
   subscribeEvent,
   useCider,
@@ -11,13 +7,14 @@ import {
 } from "@ciderapp/pluginkit";
 import { devtools } from "@vue/devtools";
 import { createPinia } from "pinia";
-import { type App, defineCustomElement, h, render } from "vue";
+import { type App, defineCustomElement } from "vue";
 
 import MainModalView from "./components/MainModal/MainModalView.vue";
 import MenuIndicator from "./components/MainModal/MenuIndicator.vue";
 
 import MySettings from "./components/MySettings.vue";
 import QueueItemUser from "./components/QueueItemUser.vue";
+import { mountInto, registerInjector, setupInjection } from "./lib/injection";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
 
@@ -27,6 +24,10 @@ if (import.meta.env.VITE_WITH_VUE_DEVTOOLS === "true") {
   console.log("Connecting to vue devtools");
   devtools.connect("localhost", 8098);
 }
+
+const PLUGIN_CONSTANTS = {
+  MENU_BTN_INJECTOR_ID: `cider-jams-menu-btn-injector`,
+};
 
 /**
  * Initializing a Vue app instance so we can use things like Pinia.
@@ -40,42 +41,7 @@ function configureApp(app: App) {
   app.use(pinia);
 }
 
-// Instead of relying on $nextTick or manual mutation observer, use the 'updated' hook
-function injectCustomDOMElement(component: any) {
-  const definition = component.$.type;
-  if (definition.__name === "AMQueueItem") {
-    const el: HTMLElement = component.$el;
-    if (el && !(el as any).__customDomInjected) {
-      const metadataEl = el.querySelector(".queue-item-actions");
-      if (metadataEl && el.children.length > 0) {
-        el.style.gridTemplateColumns = "48px 1fr auto auto";
-
-        const userElement = h(QueueItemUser);
-
-        // @ts-ignore
-        userElement.appContext = window.__PLUGINSYS__.App.vue._context;
-
-        render(userElement, el);
-        el.appendChild(userElement.el as unknown as Node);
-
-        (el as any).__customDomInjected = true;
-      }
-    }
-  }
-}
-
-// Register using a mixin with the 'updated' hook so that DOM is in its latest state
-window.CiderApp.app.mixin({
-  updated() {
-    injectCustomDOMElement(this);
-  },
-});
-
-window.CiderApp.app.mixin({
-  mounted() {
-    injectCustomDOMElement(this);
-  },
-});
+setupInjection(window.CiderApp.app);
 
 /**
  * Custom Elements that will be registered in the app
@@ -85,10 +51,7 @@ export const CustomElements = {
     shadowRoot: false,
     configureApp,
   }),
-  "hello-world": defineCustomElement(MainModalView, {
-    /**
-     * Disabling the shadow root DOM so that we can inject styles from the DOM
-     */
+  "main-modal-view": defineCustomElement(MainModalView, {
     shadowRoot: false,
     configureApp,
   }),
@@ -102,38 +65,37 @@ export const CustomElements = {
   }),
 };
 
-const PLUGIN_CONSTANTS = {
-  MENU_BTN_INJECTOR_ID: `cider-jams-menu-btn-injector`,
-};
+registerInjector({
+  // @ts-ignore: PluginBaseButton is an untyped global definition
+  target: window.__PLUGINSYS__.App.Components.PluginBaseButton,
 
-// @ts-ignore
-const PluginBaseButton = window.__PLUGINSYS__.App.Components.PluginBaseButton;
-const originalMounted = PluginBaseButton.mounted;
-PluginBaseButton.mounted = function () {
-  if (originalMounted) originalMounted.call(this);
-  injectComponent(this);
-};
+  match: (component) =>
+    component.$?.props?.button?.element ===
+    PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
 
-const originalUpdated = PluginBaseButton.updated;
-PluginBaseButton.updated = function () {
-  if (originalUpdated) originalUpdated.call(this);
-  injectComponent(this);
-};
-
-function injectComponent(component: any) {
-  const buttonProps = component.$?.props?.button;
-
-  if (buttonProps?.element === PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID) {
-    const vnodeElement = component.$?.vnode?.el;
-    for (const child of vnodeElement.children) {
+  inject(component) {
+    const host: HTMLElement = component.$?.vnode?.el;
+    for (const child of Array.from(host.children) as HTMLElement[]) {
       child.style.display = "none";
     }
+    host.appendChild(
+      document.createElement(customElementName("menu-indicator")),
+    );
+    host.style.marginRight = "1rem";
+  },
+});
 
-    const el = document.createElement(customElementName("menu-indicator"));
-    vnodeElement.appendChild(el);
-    vnodeElement.style.marginRight = "1rem";
-  }
-}
+registerInjector({
+  match: (component, el) =>
+    component.$?.type?.__name === "AMQueueItem" &&
+    !!el.querySelector(".queue-item-actions") &&
+    el.children.length > 0,
+
+  inject(_component, el) {
+    el.style.gridTemplateColumns = "48px 1fr auto auto";
+    mountInto(QueueItemUser, el);
+  },
+});
 
 /**
  * Defining the plugin context
@@ -165,64 +127,12 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
        */
       this.SettingsElement = customElementName("settings");
 
-      // Here we add a new entry to the main menu
-      addMainMenuEntry({
-        label: "Go to my page",
-        onClick() {
-          goToPage({
-            name: "page-helloworld",
-          });
-        },
-      });
-
-      addMainMenuEntry({
-        label: "Modal example",
-        onClick() {
-          const { closeDialog, openDialog, dialogElement } = createModal({
-            escClose: true,
-          });
-          const content = document.createElement(
-            customElementName("modal-example"),
-          );
-          // @ts-ignore
-          content._props.closeFn = closeDialog;
-          dialogElement.appendChild(content);
-          openDialog();
-        },
-      });
-
-      addImmersiveMenuEntry({
-        label: "Go to my page",
-        onClick() {
-          goToPage({
-            name: "page-helloworld",
-          });
-        },
-      });
-
-      addMainMenuEntry({
-        label: "Go to Components Showcase",
-        onClick() {
-          goToPage({
-            name: "page-components",
-          });
-        },
-      });
-
-      // Here we add a custom button to the top right of the chrome
       addCustomButton({
         element: PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
         location: "chrome-top/right",
         title: "Cider Jams",
-        ctxMenuElement: customElementName("hello-world"),
-        menuElement: customElementName("hello-world"),
-      });
-
-      addMediaItemContextMenuEntry({
-        label: "Send to plugin",
-        onClick(item) {
-          console.log("Got this item", item);
-        },
+        ctxMenuElement: customElementName("main-modal-view"),
+        menuElement: customElementName("main-modal-view"),
       });
 
       const cider = useCider();
