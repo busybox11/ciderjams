@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { useJamStore } from "../stores/main";
+import { useJamStore } from "../../stores/main";
 
-import NoActiveSession from "./MainModal/NoActiveSession.vue";
-import SessionInfo from "./MainModal/SessionInfo.vue";
+import NoActiveSession from "./Views/NoActiveSession.vue";
+import SessionInfo from "./Views/SessionInfo.vue";
 
 const jamStore = useJamStore();
 

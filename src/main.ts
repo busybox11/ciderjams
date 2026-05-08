@@ -12,14 +12,15 @@ import {
 import { devtools } from "@vue/devtools";
 import { createPinia } from "pinia";
 import { type App, defineCustomElement, h, render } from "vue";
-import ComponentBasedModal from "./components/ComponentBasedModal.vue";
-import HelloWorld from "./components/HelloWorld.vue";
-import MenuIndicator from "./components/MenuIndicator.vue";
-import ModalExample from "./components/ModalExample.vue";
+
+import MainModalView from "./components/MainModal/MainModalView.vue";
+import MenuIndicator from "./components/MainModal/MenuIndicator.vue";
+
 import MySettings from "./components/MySettings.vue";
 import QueueItemUser from "./components/QueueItemUser.vue";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
+
 import PluginConfig from "./plugin.config";
 
 if (import.meta.env.VITE_WITH_VUE_DEVTOOLS === "true") {
@@ -50,9 +51,12 @@ function injectCustomDOMElement(component: any) {
         el.style.gridTemplateColumns = "48px 1fr auto auto";
 
         const userElement = h(QueueItemUser);
+
+        // @ts-ignore
         userElement.appContext = window.__PLUGINSYS__.App.vue._context;
+
         render(userElement, el);
-        el.appendChild(userElement.el);
+        el.appendChild(userElement.el as unknown as Node);
 
         (el as any).__customDomInjected = true;
       }
@@ -81,14 +85,10 @@ export const CustomElements = {
     shadowRoot: false,
     configureApp,
   }),
-  "hello-world": defineCustomElement(HelloWorld, {
+  "hello-world": defineCustomElement(MainModalView, {
     /**
      * Disabling the shadow root DOM so that we can inject styles from the DOM
      */
-    shadowRoot: false,
-    configureApp,
-  }),
-  "modal-example": defineCustomElement(ModalExample, {
     shadowRoot: false,
     configureApp,
   }),
@@ -100,16 +100,13 @@ export const CustomElements = {
     shadowRoot: false,
     configureApp,
   }),
-  "component-based-modal": defineCustomElement(ComponentBasedModal, {
-    shadowRoot: false,
-    configureApp,
-  }),
 };
 
 const PLUGIN_CONSTANTS = {
   MENU_BTN_INJECTOR_ID: `cider-jams-menu-btn-injector`,
 };
 
+// @ts-ignore
 const PluginBaseButton = window.__PLUGINSYS__.App.Components.PluginBaseButton;
 const originalMounted = PluginBaseButton.mounted;
 PluginBaseButton.mounted = function () {
@@ -240,13 +237,13 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
 
       musickit.addEventListener(
         "nowPlayingItemWillChange",
-        ({ item }: { item: MusicKit.MediaItem }) => {
+        ({ item }: { item: any }) => {
           console.log("Now playing item will change", item);
         },
       );
       musickit.addEventListener(
         "nowPlayingItemDidChange",
-        ({ item }: { item: MusicKit.MediaItem }) => {
+        ({ item }: { item: any }) => {
           console.log("Now playing item", item);
         },
       );

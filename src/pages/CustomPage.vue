@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { DialogAPI, useCider } from "@ciderapp/pluginkit";
 import { computed } from "vue";
-import HelloWorld from "../components/HelloWorld.vue";
+import HelloWorld from "../components/MainModal/MainModalView.vue";
 
 const openComponentDialog = () => {
   DialogAPI.createDialog({

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
-import { useJamStore } from "../../stores/main";
+import { useJamStore } from "../../../stores/main";
 
 const jamStore = useJamStore();
 
