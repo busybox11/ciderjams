@@ -124,18 +124,17 @@ PluginBaseButton.updated = function () {
 };
 
 function injectComponent(component: any) {
-  const vnodeElement = component.$?.vnode?.el;
+  const buttonProps = component.$?.props?.button;
 
-  if (vnodeElement) {
-    if (vnodeElement.innerText === PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID) {
-      for (const child of vnodeElement.children) {
-        child.style.display = "none";
-      }
-
-      const el = document.createElement(customElementName("menu-indicator"));
-      vnodeElement.appendChild(el);
-      vnodeElement.style.marginRight = "1rem";
+  if (buttonProps?.element === PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID) {
+    const vnodeElement = component.$?.vnode?.el;
+    for (const child of vnodeElement.children) {
+      child.style.display = "none";
     }
+
+    const el = document.createElement(customElementName("menu-indicator"));
+    vnodeElement.appendChild(el);
+    vnodeElement.style.marginRight = "1rem";
   }
 }
 
