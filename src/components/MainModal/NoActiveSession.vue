@@ -47,18 +47,19 @@ const createJam = () => {
       <button class="c-btn primary" @click="createJam">
         Create session
       </button>
-      <button class="c-btn primary" @click="">
-        Join session
-      </button>
 
-      <button class="ciderjams-icon-button">
-        <CComponent
-          name="NIcon"
-          :componentProps="{
-            name: 'settings',
-          }"
-        />
-      </button>
+      <div class="ciderjams-input-container">
+        <input type="text" class="c-input ciderjams-input" placeholder="Enter session code" />
+
+        <button class="ciderjams-join-button">
+          <CComponent
+            name="NIcon"
+            :componentProps="{
+              name: 'search',
+            }"
+          />
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -102,5 +103,34 @@ p {
   display: flex;
   margin-left: auto;
   padding: 0.25rem;
+}
+
+.ciderjams-input-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+
+  border: 1px solid #e0e0e030;
+  border-radius: 0.5rem;
+}
+
+.ciderjams-input {
+  width: 100% !important;
+  border-radius: 0;
+  border: none !important;
+  padding: 5px 10px !important;
+}
+
+.ciderjams-join-button {
+  height: 33px;
+  width: 33px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 0.5rem 0.5rem 0;
+  background: #e0e0e020;
+  border: none !important;
+  box-shadow: none !important;
 }
 </style>
