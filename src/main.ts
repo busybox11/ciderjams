@@ -7,7 +7,7 @@ import {
 } from "@ciderapp/pluginkit";
 import { devtools } from "@vue/devtools";
 import { createPinia } from "pinia";
-import { type App, defineCustomElement } from "vue";
+import { defineCustomElement, onBeforeUnmount, type App } from "vue";
 
 import MainModalView from "./components/MainModal/MainModalView.vue";
 import MenuIndicator from "./components/MainModal/MenuIndicator.vue";
@@ -19,6 +19,7 @@ import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
 
 import PluginConfig from "./plugin.config";
+import { SharePlayInhibitor } from "./shareplay";
 
 if (import.meta.env.VITE_WITH_VUE_DEVTOOLS === "true") {
   console.log("Connecting to vue devtools");
@@ -144,6 +145,14 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
 
       const musickit = useMusicKit();
       console.log("MusicKit", musickit);
+
+      const shareplay = new SharePlayInhibitor();
+      shareplay.inject();
+      onBeforeUnmount(() => {
+        shareplay.eject();
+      });
+      console.log("SharePlayInhibitor", shareplay);
+      window.spi = shareplay;
 
       subscribeEvent("browser:page_changed", (data) => {
         console.log("internal event", data);
