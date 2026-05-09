@@ -4,6 +4,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 (async () => {
+    const pluginRoot = path.resolve(__dirname, '..');
 
     const { identifier } = (await import('../src/plugin.config')).default;
 
@@ -12,11 +13,10 @@ import { execSync } from 'child_process';
         throw new Error(`Invalid identifier: ${identifier}`);
     }
 
-    // run npm run build
-    execSync('npm run build');
+    execSync('pnpm run build', { cwd: pluginRoot, stdio: 'inherit' });
 
-    // The file that will be sent to the marketplace
-    const publishDir = path.resolve(__dirname, '../publish');
+    // The file that will be sent to the marketplace (repo root)
+    const publishDir = path.resolve(__dirname, '../../publish');
     // create a release dir if not exists and remove all files
     if (!fs.existsSync(publishDir)) {
         fs.mkdirSync(publishDir);
@@ -25,8 +25,8 @@ import { execSync } from 'child_process';
         fs.mkdirSync(publishDir);
     }
 
-    const distDir = path.resolve(__dirname, '../dist');
-    const buildContentDir = path.resolve(__dirname, '../dist');
+    const distDir = path.resolve(pluginRoot, 'dist');
+    const buildContentDir = path.resolve(pluginRoot, 'dist');
 
     // make a publish dir
     if (!fs.existsSync(buildContentDir)) {

@@ -6,7 +6,7 @@
       "name": "Debug plugin",
       "request": "attach",
       "port": 8315,
-      "webRoot": "${workspaceFolder}/src"
+      "webRoot": "${workspaceFolder}/plugin/src"
     }
   ]
 }

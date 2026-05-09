@@ -6,7 +6,7 @@ import {
   useMusicKit,
 } from "@ciderapp/pluginkit";
 import { devtools } from "@vue/devtools";
-import { createPinia } from "pinia";
+import { createPinia, setActivePinia } from "pinia";
 import { defineCustomElement, onBeforeUnmount, type App } from "vue";
 
 import MainModalView from "./components/MainModal/MainModalView.vue";
@@ -19,7 +19,7 @@ import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
 
 import PluginConfig from "./plugin.config";
-import { SharePlayInhibitor } from "./shareplay";
+import { useSharePlayStore } from "./stores/shareplay";
 
 if (import.meta.env.VITE_WITH_VUE_DEVTOOLS === "true") {
   console.log("Connecting to vue devtools");
@@ -34,6 +34,7 @@ const PLUGIN_CONSTANTS = {
  * Initializing a Vue app instance so we can use things like Pinia.
  */
 const pinia = createPinia();
+setActivePinia(pinia);
 
 /**
  * Function that configures the app instances of the custom elements
@@ -146,13 +147,14 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
       const musickit = useMusicKit();
       console.log("MusicKit", musickit);
 
-      const shareplay = new SharePlayInhibitor();
-      shareplay.inject();
+      const sharePlayStore = useSharePlayStore();
+      sharePlayStore.activate();
       onBeforeUnmount(() => {
-        shareplay.eject();
+        sharePlayStore.deactivate();
       });
-      console.log("SharePlayInhibitor", shareplay);
-      window.spi = shareplay;
+      console.log("SharePlay store", sharePlayStore);
+      (window as unknown as { spi: typeof sharePlayStore }).spi =
+        sharePlayStore;
 
       subscribeEvent("browser:page_changed", (data) => {
         console.log("internal event", data);

@@ -1,5 +1,16 @@
 import { mockSharePlayData } from "./mock";
 
+export interface SharePlayParticipant {
+  id: string;
+  name: string;
+}
+
+export interface SharePlayHooks {
+  onInjected?: (participants: SharePlayParticipant[]) => void;
+  onEjected?: () => void;
+  onMediaStatePublished?: (payload: unknown) => void;
+}
+
 type MusicKitInstance = MusicKit.MusicKitInstance & {
   _sharePlay?: {
     id: string;
@@ -11,7 +22,7 @@ type MusicKitInstance = MusicKit.MusicKitInstance & {
         volumeControl: boolean;
       };
     };
-    participants: { id: string; name: string }[];
+    participants: SharePlayParticipant[];
     checkCapability: () => boolean;
     shouldUpdate: () => boolean;
     lastKnownElapsedTime: number;
@@ -26,15 +37,23 @@ type MusicKitInstance = MusicKit.MusicKitInstance & {
 };
 
 export class SharePlayInhibitor {
-  private originalMethods: Map<string, any> = new Map();
+  private originalMethods = new Map<
+    string,
+    { obj: any; prop: string; original: any }
+  >();
   private music: MusicKitInstance = (window as any).MusicKit?.getInstance();
   private onSharePlayMediaStateUpdateBound: ((data: unknown) => void) | null =
     null;
+  private onSharePlayNextItemBound: (() => void) | null = null;
+  private onSharePlayPreviousItemBound: (() => void) | null = null;
 
-  public inject() {
+  constructor(private readonly hooks: SharePlayHooks = {}) {}
+
+  /** @returns false if MusicKit was not available */
+  public inject(): boolean {
     console.debug("[shareplay] injecting");
     console.debug("[shareplay] music", this.music);
-    if (!this.music) return;
+    if (!this.music) return false;
 
     this.music._sharePlay = {
       id: "cider-jams-session",
@@ -90,12 +109,20 @@ export class SharePlayInhibitor {
         this.onSharePlayMediaStateUpdateBound,
       );
     }
-    this.music.services.dispatcher.subscribe("sharePlay.nextItem", () => {
+    this.onSharePlayNextItemBound = () => {
       console.debug("[shareplay] nextItem");
-    });
-    this.music.services.dispatcher.subscribe("sharePlay.previousItem", () => {
+    };
+    this.onSharePlayPreviousItemBound = () => {
       console.debug("[shareplay] previousItem");
-    });
+    };
+    this.music.services.dispatcher.subscribe(
+      "sharePlay.nextItem",
+      this.onSharePlayNextItemBound,
+    );
+    this.music.services.dispatcher.subscribe(
+      "sharePlay.previousItem",
+      this.onSharePlayPreviousItemBound,
+    );
 
     const forceSkip = async (original: Function) => {
       console.debug("[shareplay] forceSkip");
@@ -108,7 +135,10 @@ export class SharePlayInhibitor {
     this.patch(this.music, "skipToNextItem", forceSkip);
     this.patch(this.music, "skipToPreviousItem", forceSkip);
 
+    this.hooks.onInjected?.(this.music._sharePlay!.participants);
+
     console.debug("[shareplay] injected");
+    return true;
   }
 
   /**
@@ -116,40 +146,55 @@ export class SharePlayInhibitor {
    */
   public eject() {
     console.debug("[shareplay] ejecting");
-    this.originalMethods.forEach((original, key) => {
+    this.originalMethods.forEach(({ obj, prop, original }, key) => {
       console.debug("[shareplay] restoring original method", key);
-      const { obj, prop } = JSON.parse(key);
       obj[prop] = original;
     });
+    this.originalMethods.clear();
 
-    this.music._sharePlay = undefined;
-    this.music.playbackMode = 1; // MIXED_CONTENT
-    if (this.onSharePlayMediaStateUpdateBound) {
-      this.music.services.dispatcher.unsubscribe(
-        "sharePlay.mediaStateUpdate",
-        this.onSharePlayMediaStateUpdateBound,
-      );
-      this.onSharePlayMediaStateUpdateBound = null;
+    const music = this.music;
+    if (music) {
+      music._sharePlay = undefined;
+      music.playbackMode = 1; // MIXED_CONTENT
+      const dispatcher = music.services?.dispatcher;
+      if (dispatcher) {
+        if (this.onSharePlayMediaStateUpdateBound) {
+          dispatcher.unsubscribe(
+            "sharePlay.mediaStateUpdate",
+            this.onSharePlayMediaStateUpdateBound,
+          );
+          this.onSharePlayMediaStateUpdateBound = null;
+        }
+        if (this.onSharePlayNextItemBound) {
+          dispatcher.unsubscribe(
+            "sharePlay.nextItem",
+            this.onSharePlayNextItemBound,
+          );
+          this.onSharePlayNextItemBound = null;
+        }
+        if (this.onSharePlayPreviousItemBound) {
+          dispatcher.unsubscribe(
+            "sharePlay.previousItem",
+            this.onSharePlayPreviousItemBound,
+          );
+          this.onSharePlayPreviousItemBound = null;
+        }
+      }
     }
-    this.music.services.dispatcher.unsubscribe("sharePlay.nextItem", () => {});
-    this.music.services.dispatcher.unsubscribe(
-      "sharePlay.previousItem",
-      () => {},
-    );
+
+    this.hooks.onEjected?.();
 
     console.debug("[shareplay] ejected");
   }
 
   private patch(obj: any, prop: string, wrapper: Function) {
     const original = obj[prop];
-    this.originalMethods.set(
-      JSON.stringify({ objName: obj.constructor.name, prop }),
-      original,
-    );
+    const key = `${obj?.constructor?.name ?? "object"}::${prop}`;
+    this.originalMethods.set(key, { obj, prop, original });
     obj[prop] = (...args: any[]) => wrapper(original.bind(obj), ...args);
   }
 
-  private async syncFromServer(serverData: any) {
+  public async syncFromServer(serverData: any) {
     console.debug("[shareplay] syncFromServer", serverData);
     if (!this.music) return;
 
@@ -279,6 +324,7 @@ export class SharePlayInhibitor {
         "sharePlay.mediaStateUpdate",
         payload,
       );
+      this.hooks.onMediaStatePublished?.(payload);
     } finally {
       if (l) {
         this.music.services.dispatcher.subscribe(
