@@ -1,0 +1,15 @@
+{
+  "name": "@ciderjams/proto",
+  "version": "1.0.0",
+  "description": "ciderjams protocol shared package",
+  "author": "busybox11",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25",
+    "typescript": "^6.0.3"
+  }
+}

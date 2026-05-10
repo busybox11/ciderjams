@@ -21,3 +21,5 @@ publish
 *.njsproj
 *.sln
 *.sw?
+
+refs/
