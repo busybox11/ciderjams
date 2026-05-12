@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ciderjams/proto": "workspace:*",
+    "@elysia/eden": "^1.4.10",
     "@paralleldrive/cuid2": "^2.2.2",
     "lodash": "^4.17.21",
     "lucide-vue": "^0.517.0",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@ciderapp/pluginkit": "github:ciderapp/pluginkit",
+    "@ciderjams/server": "workspace:^",
     "@types/lodash": "^4.17.6",
     "@types/musickit": "ciderapp/musickit-types",
     "@types/node": "^20.14.9",
