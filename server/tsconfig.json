@@ -14,7 +14,7 @@
     "noEmitOnError": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    "types": ["node"]
+    "types": ["bun-types"]
   },
   "include": ["src/**/*.ts"]
 }

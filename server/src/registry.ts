@@ -11,9 +11,11 @@ export function newRoomId(): string {
 function randomRoomCode(length = 6): string {
   const bytes = randomBytes(length);
   let code = "";
+
   for (let i = 0; i < length; i++) {
     code += CODE_ALPHABET[bytes[i]! % CODE_ALPHABET.length]!;
   }
+
   return code;
 }
 
@@ -29,11 +31,13 @@ export class RoomRegistry {
     const room = Room.create(host, roomId, code);
     this.byId.set(roomId, room);
     this.codeToId.set(code, roomId);
+
     return room;
   }
 
   getByCode(code: string): Room | undefined {
     const id = this.codeToId.get(code);
+
     return id ? this.byId.get(id) : undefined;
   }
 
