@@ -4,7 +4,11 @@ import { useJamStore } from "../../stores/main";
 
 const jamStore = useJamStore();
 
-const currentJamOwner = computed(() => jamStore.currentJam?.members.find((member) => member.isOwner));
+const currentJamOwner = computed(() => {
+  const jam = jamStore.currentJam;
+  if (!jam) return undefined;
+  return jam.participants.find((m) => m.userId === jam.hostUserId);
+});
 </script>
 
 <template>

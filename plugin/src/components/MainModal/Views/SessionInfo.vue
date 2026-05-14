@@ -11,16 +11,16 @@ const jamStore = useJamStore();
 const currentJam = computed(() => jamStore.currentJam);
 
 const leaveSession = () => {
-  jamStore.currentJam = null;
-}
+  jamStore.leaveJam();
+};
 </script>
 
 <template>
   <div class="plugin-base">
-    <ModalHeader title="Listening session" :description="`Connected - ${currentJam?.members.length} members`" />
+    <ModalHeader title="Listening session" :description="`Connected - ${currentJam?.participants.length} members`" />
 
     <div class="ciderjams-session-members">
-      <JamMemberListItem :member="member" v-for="member in currentJam?.members" :key="member.userId" />
+      <JamMemberListItem :member="member" v-for="member in currentJam?.participants" :key="member.userId" />
     </div>
 
     <hr class="ciderjams-divider" />
@@ -33,7 +33,7 @@ const leaveSession = () => {
       <div class="ciderjams-icon-buttons">  
         <div class="ciderjams-room-code-container">
           <small>Room code</small>
-        <span class="ciderjams-room-code">{{ currentJam?.code }}</span>
+        <span class="ciderjams-room-code">{{ currentJam?.roomCode }}</span>
       </div>
         <button class="ciderjams-icon-button">
           <CComponent

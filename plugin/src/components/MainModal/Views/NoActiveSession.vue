@@ -4,36 +4,17 @@ import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
 import JamMemberListItem from "../../shared/JamMemberListItem.vue";
 import ModalHeader from "../../shared/ModalHeader.vue";
 
+import { log } from "../../../lib/logger";
 import { useJamStore } from "../../../stores/main";
 
 const jamStore = useJamStore();
 
-const createJam = () => {
-  jamStore.currentJam = {
-    id: "1",
-    name: "My Jam",
-    code: "123456",
-    members: [
-      {
-        userId: "1",
-        name: "rain capsule",
-        handle: "raincapsule",
-        avatar: "https://avatars.githubusercontent.com/u/29630035",
-      },
-      {
-        userId: "2",
-        name: "breyy",
-        handle: "pouler",
-        avatar: "https://pbs.twimg.com/profile_images/2010692334107684864/dQBcFxyj_400x400.jpg",
-      },
-      {
-        userId: "3",
-        name: "Hortense",
-        handle: "hotrans",
-        avatar: "https://cdn.discordapp.com/avatars/750770863418376216/f20db21adc47f1c0d92bba4042ae8aef.webp?size=240",
-      },
-    ],
-  };
+const createJam = async () => {
+  try {
+    await jamStore.createJam();
+  } catch (e) {
+    log.error(e);
+  }
 };
 </script>
 
