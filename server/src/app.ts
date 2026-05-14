@@ -11,8 +11,11 @@ import { RoomSocketHub, type HubSocket } from "./room-sockets";
 const registry = new RoomRegistry();
 const hub = new RoomSocketHub();
 
-function asHubSocket(ws: unknown): HubSocket {
-  return ws as HubSocket;
+/** underlying bun ServerWebSocket: Elysia wraps it in a new ElysiaWS per callback, so hub WeakMap keys must use raw */
+function asHubSocket(ws: { raw: HubSocket } | HubSocket): HubSocket {
+  return typeof ws === "object" && ws !== null && "raw" in ws
+    ? (ws.raw as HubSocket)
+    : (ws as HubSocket);
 }
 
 export const app = new Elysia()
