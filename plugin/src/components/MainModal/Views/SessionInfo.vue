@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
+
+import JamMemberListItem from "../../shared/JamMemberListItem.vue";
+import ModalHeader from "../../shared/ModalHeader.vue";
+
 import { useJamStore } from "../../../stores/main";
 
 const jamStore = useJamStore();
@@ -13,17 +17,10 @@ const leaveSession = () => {
 
 <template>
   <div class="plugin-base">
-    <h3 class="ciderjams-title">Listening session</h3>
-    <p class="ciderjams-session-info">Connected - {{ currentJam?.members.length }} members</p>
+    <ModalHeader title="Listening session" :description="`Connected - ${currentJam?.members.length} members`" />
 
     <div class="ciderjams-session-members">
-      <div class="ciderjams-session-member" v-for="member in currentJam?.members" :key="member.id">
-        <img :src="member.avatar" :alt="member.name" />
-        <div class="ciderjams-session-member-info">
-          <p class="ciderjams-session-member-name">{{ member.name }}</p>
-          <p class="ciderjams-session-member-username">@{{ member.username }}</p>
-        </div>
-      </div>
+      <JamMemberListItem :member="member" v-for="member in currentJam?.members" :key="member.userId" />
     </div>
 
     <hr class="ciderjams-divider" />
@@ -85,38 +82,10 @@ p {
 }
 
 .ciderjams-session-members {
-  margin: 1rem 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-}
-
-.ciderjams-session-member {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
   width: 100%;
-}
-.ciderjams-session-member img {
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 50%;
-}
-
-.ciderjams-session-member-name {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.2;
-  padding-bottom: 0.125rem;
-  font-weight: 600;
-}
-
-.ciderjams-session-member-username {
-  margin: 0;
-  font-size: 0.75rem;
-  font-family: monospace;
-  opacity: 0.5;
 }
 
 .ciderjams-divider {
