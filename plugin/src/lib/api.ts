@@ -1,4 +1,5 @@
-import type { roomParticipant } from "@ciderjams/proto";
+import type { ClientWireMessage, roomParticipant } from "@ciderjams/proto";
+import { clientWireMessageSchema } from "@ciderjams/proto";
 import type { App } from "@ciderjams/server/app";
 import { treaty, type Treaty } from "@elysia/eden";
 
@@ -17,7 +18,16 @@ export function ciderHealth() {
 }
 
 export function ciderSyncSocket(query: roomParticipant) {
-  return ciderJamsApi().ws.subscribe({ query } as never);
+  const sub = ciderJamsApi().ws.subscribe({ query } as never);
+
+  // not a huge fan of this, easiest way to have keyed type inference with schemas
+  // todo: find a better way
+  const sendRaw = sub.send.bind(sub);
+  return Object.assign(sub, {
+    send(message: ClientWireMessage) {
+      return sendRaw(clientWireMessageSchema.parse(message) as never);
+    },
+  });
 }
 
 export type CiderSyncSocket = ReturnType<typeof ciderSyncSocket>;
