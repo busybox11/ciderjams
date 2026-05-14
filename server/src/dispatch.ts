@@ -45,10 +45,11 @@ function parseClientPayload<E extends keyof typeof clientEventPayloads>(
 
 export function createRoomOp(
   registry: RoomRegistry,
+  user: roomParticipant,
   rawPayload: unknown,
 ): { room: Room; toHost: ServerMessage[] } {
-  const { user } = parseClientPayload("room.create", rawPayload);
-  const room = registry.createRoom(user);
+  const { playbackState } = parseClientPayload("room.create", rawPayload);
+  const room = registry.createRoom(user, playbackState);
   return { room, toHost: fullSync(room) };
 }
 

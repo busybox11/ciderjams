@@ -1,4 +1,4 @@
-import type { roomParticipant } from "@ciderjams/proto";
+import type { roomParticipant, RoomPlaybackState } from "@ciderjams/proto";
 import { randomBytes } from "node:crypto";
 import { Room } from "./room";
 
@@ -23,12 +23,15 @@ export class RoomRegistry {
   readonly byId = new Map<string, Room>();
   readonly codeToId = new Map<string, string>();
 
-  createRoom(host: roomParticipant): Room {
+  createRoom(
+    host: roomParticipant,
+    playbackState: Omit<RoomPlaybackState, "updatedAtMs">,
+  ): Room {
     const roomId = newRoomId();
     let code = randomRoomCode();
     while (this.codeToId.has(code)) code = randomRoomCode();
 
-    const room = Room.create(host, roomId, code);
+    const room = Room.create(host, roomId, code, playbackState);
     this.byId.set(roomId, room);
     this.codeToId.set(code, roomId);
 

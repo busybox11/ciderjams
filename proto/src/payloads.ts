@@ -31,7 +31,6 @@ import {
   playerShuffleMode,
   queueEntry,
   roomMeta,
-  roomParticipant,
   roomPlaybackState,
 } from "./room";
 
@@ -39,7 +38,7 @@ export const pingPayload = z.object({});
 export type PingPayload = z.infer<typeof pingPayload>;
 
 export const roomCreatePayload = z.object({
-  user: roomParticipant,
+  playbackState: roomPlaybackState.omit({ updatedAtMs: true }),
 });
 export type RoomCreatePayload = z.infer<typeof roomCreatePayload>;
 

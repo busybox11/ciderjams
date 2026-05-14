@@ -79,7 +79,7 @@ export class RoomSocketHub {
     }
 
     if (msg.event === "room.create") {
-      const { room, toHost } = createRoomOp(registry, msg.payload);
+      const { room, toHost } = createRoomOp(registry, c.user, msg.payload);
       log.log("room created", room.meta.roomCode, "by", c.user.handle);
       this.link(ws, room);
       this.send(ws, toHost);

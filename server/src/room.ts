@@ -2,7 +2,6 @@ import {
   playerStateSchema,
   queueStateSchema,
   roomMeta as roomMetaSchema,
-  roomPlaybackState,
   roomStateSchema,
   type PlayerRepeatMode,
   type PlayerShuffleMode,
@@ -25,20 +24,6 @@ function newQueueEntryId(): string {
   return randomBytes(12).toString("hex");
 }
 
-function defaultPlaybackState(): RoomPlaybackState {
-  const t = nowMs();
-  return roomPlaybackState.parse({
-    queue: [],
-    currentPlayingIndex: 0,
-    elapsedTimeMs: 0,
-    playbackState: "FULL_PLAYBACK_ONLY",
-    repeatMode: "REPEAT_OFF",
-    shuffleMode: "SHUFFLE_OFF",
-    autoPlay: false,
-    updatedAtMs: t,
-  });
-}
-
 export class Room {
   #meta: roomMeta;
   readonly participants = new Map<string, roomParticipant>();
@@ -47,13 +32,18 @@ export class Room {
     this.#meta = roomMetaSchema.parse(meta);
   }
 
-  static create(host: roomParticipant, roomId: string, roomCode: string): Room {
+  static create(
+    host: roomParticipant,
+    roomId: string,
+    roomCode: string,
+    playbackState: Omit<RoomPlaybackState, "updatedAtMs">,
+  ): Room {
     const meta = roomMetaSchema.parse({
       roomId,
       roomCode,
       hostUserId: host.userId,
       participants: [host],
-      playbackState: defaultPlaybackState(),
+      playbackState: { ...playbackState, updatedAtMs: nowMs() },
     });
 
     const room = new Room(meta);
