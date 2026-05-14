@@ -1,5 +1,7 @@
+import { createLogger } from "@ciderjams/proto";
 import { mockSharePlayData } from "./mock";
-import { log } from "../lib/logger";
+
+const log = createLogger("plugin", "shareplay");
 
 export interface SharePlayParticipant {
   id: string;
@@ -52,8 +54,8 @@ export class SharePlayInhibitor {
 
   /** @returns false if MusicKit was not available */
   public inject(): boolean {
-    log.debug("[shareplay] injecting");
-    log.debug("[shareplay] music", this.music);
+    log.debug("injecting");
+    log.debug("music", this.music);
     if (!this.music) return false;
 
     this.music._sharePlay = {
@@ -82,12 +84,10 @@ export class SharePlayInhibitor {
 
       activity.handleEvent = function (eventName: string, data: any) {
         try {
-          log.debug("[shareplay] handleEvent", eventName, data);
+          log.debug("handleEvent", eventName, data);
           return originalHandler.apply(this, [eventName, data]);
         } catch (e) {
-          log.warn(
-            `[shareplay] analytics suppressed for event: ${eventName}`,
-          );
+          log.warn(`analytics suppressed for event: ${eventName}`);
           return;
         }
       };
@@ -111,10 +111,10 @@ export class SharePlayInhibitor {
       );
     }
     this.onSharePlayNextItemBound = () => {
-      log.debug("[shareplay] nextItem");
+      log.debug("nextItem");
     };
     this.onSharePlayPreviousItemBound = () => {
-      log.debug("[shareplay] previousItem");
+      log.debug("previousItem");
     };
     this.music.services.dispatcher.subscribe(
       "sharePlay.nextItem",
@@ -126,7 +126,7 @@ export class SharePlayInhibitor {
     );
 
     const forceSkip = async (original: Function) => {
-      log.debug("[shareplay] forceSkip");
+      log.debug("forceSkip");
       const prevMode = this.music.playbackMode;
       this.music.playbackMode = 1;
       await original();
@@ -138,7 +138,7 @@ export class SharePlayInhibitor {
 
     this.hooks.onInjected?.(this.music._sharePlay!.participants);
 
-    log.debug("[shareplay] injected");
+    log.debug("injected");
     return true;
   }
 
@@ -146,9 +146,9 @@ export class SharePlayInhibitor {
    * Remove all patches and restore original behavior
    */
   public eject() {
-    log.debug("[shareplay] ejecting");
+    log.debug("ejecting");
     this.originalMethods.forEach(({ obj, prop, original }, key) => {
-      log.debug("[shareplay] restoring original method", key);
+      log.debug("restoring original method", key);
       obj[prop] = original;
     });
     this.originalMethods.clear();
@@ -185,7 +185,7 @@ export class SharePlayInhibitor {
 
     this.hooks.onEjected?.();
 
-    log.debug("[shareplay] ejected");
+    log.debug("ejected");
   }
 
   private patch(obj: any, prop: string, wrapper: Function) {
@@ -196,7 +196,7 @@ export class SharePlayInhibitor {
   }
 
   public async syncFromServer(serverData: any) {
-    log.debug("[shareplay] syncFromServer", serverData);
+    log.debug("syncFromServer", serverData);
     if (!this.music) return;
 
     const playbackState = serverData.playbackState ?? serverData.state ?? 0;
@@ -266,14 +266,11 @@ export class SharePlayInhibitor {
           await this.music.seekToTime(seekSeconds);
         }
         if (this.music.nowPlayingItemIndex !== playingIndex) {
-          log.warn(
-            "[shareplay] drift after play, re-pinning",
-            playingIndex,
-          );
+          log.warn("drift after play, re-pinning", playingIndex);
           await resyncPlayback();
         }
       } catch (e) {
-        log.error("[shareplay] error playing", e);
+        log.error("error playing", e);
       }
     }
 
@@ -298,21 +295,17 @@ export class SharePlayInhibitor {
       const got = np?.id != null ? String(np.id) : "";
       if (expectedSongId && got !== expectedSongId) {
         log.warn(
-          `[shareplay] wrong nowPlaying (${phase}), got=${got}, want=${expectedSongId}`,
+          `wrong nowPlaying (${phase}), got=${got}, want=${expectedSongId}`,
         );
         await resyncPlayback();
       }
       if (this.music.nowPlayingItemIndex !== playingIndex) {
-        log.warn(
-          "[shareplay] index drift ",
-          phase,
-          this.music.nowPlayingItemIndex,
-        );
+        log.warn("index drift ", phase, this.music.nowPlayingItemIndex);
         await resyncPlayback();
       }
     };
 
-    log.debug("[shareplay] publishing mediaStateUpdate", payload);
+    log.debug("publishing mediaStateUpdate", payload);
     const l = this.onSharePlayMediaStateUpdateBound;
     if (l) {
       this.music.services.dispatcher.unsubscribe(
@@ -338,16 +331,13 @@ export class SharePlayInhibitor {
     await refocusIfWrongItem("post-publish-sync");
     setTimeout(() => void refocusIfWrongItem("post-publish+50ms"), 50);
 
-    log.debug("[shareplay] played");
-    log.debug("[shareplay] elapsedTime", serverData.elapsedTime);
-    log.debug(
-      "[shareplay] currentPlaybackTime",
-      this.music.currentPlaybackTime,
-    );
+    log.debug("played");
+    log.debug("elapsedTime", serverData.elapsedTime);
+    log.debug("currentPlaybackTime", this.music.currentPlaybackTime);
   }
 
   public triggerMockSync() {
-    log.debug("[shareplay] triggering mock sync");
+    log.debug("triggering mock sync");
     this.syncFromServer(JSON.parse(mockSharePlayData));
   }
 }
