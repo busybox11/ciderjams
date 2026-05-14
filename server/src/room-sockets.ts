@@ -7,6 +7,7 @@ import {
   joinRoomOp,
   type ServerMessage,
 } from "./dispatch";
+import { log } from "./logger";
 import type { RoomRegistry } from "./registry";
 import type { Room } from "./room";
 
@@ -25,9 +26,11 @@ export class RoomSocketHub {
 
   init(ws: HubSocket, user: roomParticipant): void {
     this.ctx.set(ws, { user, room: null });
+    log.log("ws connected", user.handle);
   }
 
   error(ws: HubSocket, message: string): void {
+    log.warn("ws → client error", message);
     if (ws.readyState === WS_OPEN) {
       const body: WireErrorMessage = { type: "error", message };
       ws.send(JSON.stringify(body));
@@ -42,6 +45,7 @@ export class RoomSocketHub {
 
   onDisconnect(ws: HubSocket, registry: RoomRegistry): void {
     const c = this.ctx.get(ws);
+    log.log("ws disconnected", c?.user.handle ?? "(unknown)");
     if (!c?.room) return;
 
     const room = c.room;
@@ -76,6 +80,7 @@ export class RoomSocketHub {
 
     if (msg.event === "room.create") {
       const { room, toHost } = createRoomOp(registry, msg.payload);
+      log.log("room created", room.meta.roomCode, "by", c.user.handle);
       this.link(ws, room);
       this.send(ws, toHost);
       return;
@@ -84,6 +89,7 @@ export class RoomSocketHub {
     if (msg.event === "room.join") {
       const res = joinRoomOp(registry, msg.payload, c.user);
       if (!res.ok) {
+        log.warn("room join failed", res.reason);
         this.error(
           ws,
           res.reason === "not_found"
@@ -93,6 +99,7 @@ export class RoomSocketHub {
         return;
       }
 
+      log.log("room joined", res.room.meta.roomCode, c.user.handle);
       this.broadcast(res.room, joinBroadcastToExisting(res.room));
       this.link(ws, res.room);
       this.send(ws, res.toJoiner);
@@ -115,6 +122,7 @@ export class RoomSocketHub {
         c.user.userId,
       );
       if (r.roomClosed) {
+        log.log("room closed (empty)", room.meta.roomCode);
         this.clearRoom(room);
         return;
       }

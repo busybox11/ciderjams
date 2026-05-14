@@ -15,6 +15,7 @@ import MenuIndicator from "./components/MainModal/MenuIndicator.vue";
 import MySettings from "./components/MySettings.vue";
 import QueueItemUser from "./components/QueueItemUser.vue";
 import { mountInto, registerInjector, setupInjection } from "./lib/injection";
+import { log } from "./lib/logger";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
 
@@ -22,7 +23,7 @@ import PluginConfig from "./plugin.config";
 import { useSharePlayStore } from "./stores/shareplay";
 
 if (import.meta.env.VITE_WITH_VUE_DEVTOOLS === "true") {
-  console.log("Connecting to vue devtools");
+  log.log("Connecting to vue devtools");
   devtools.connect("localhost", 8098);
 }
 
@@ -142,34 +143,34 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
       });
 
       const cider = useCider();
-      console.log("Cider", cider);
+      log.log("Cider", cider);
 
       const musickit = useMusicKit();
-      console.log("MusicKit", musickit);
+      log.log("MusicKit", musickit);
 
       const sharePlayStore = useSharePlayStore();
       sharePlayStore.activate();
       onBeforeUnmount(() => {
         sharePlayStore.deactivate();
       });
-      console.log("SharePlay store", sharePlayStore);
+      log.log("SharePlay store", sharePlayStore);
       (window as unknown as { spi: typeof sharePlayStore }).spi =
         sharePlayStore;
 
       subscribeEvent("browser:page_changed", (data) => {
-        console.log("internal event", data);
+        log.log("internal event", data);
       });
 
       musickit.addEventListener(
         "nowPlayingItemWillChange",
         ({ item }: { item: any }) => {
-          console.log("Now playing item will change", item);
+          log.log("Now playing item will change", item);
         },
       );
       musickit.addEventListener(
         "nowPlayingItemDidChange",
         ({ item }: { item: any }) => {
-          console.log("Now playing item", item);
+          log.log("Now playing item", item);
         },
       );
     },

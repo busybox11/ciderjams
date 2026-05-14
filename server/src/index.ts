@@ -1,8 +1,9 @@
 import { app } from "./app";
+import { log } from "./logger";
 
 const hostname = "0.0.0.0";
 const port = Number(process.env.PORT ?? 8787);
 
 app.listen({ port, hostname });
 
-console.log(`ciderjams ://${hostname}:${port}`);
+log.log(`listening ://${hostname}:${port}`);
