@@ -112,7 +112,7 @@ export type ClientEventPayloadMap = {
 };
 
 export const roomStateSchema = roomMeta.omit({
-  state: true,
+  playbackState: true,
 });
 export type RoomStateSchema = z.infer<typeof roomStateSchema>;
 

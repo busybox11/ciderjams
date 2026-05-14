@@ -54,6 +54,7 @@ export const roomMeta = z.object({
   roomId: z.string().describe("Server-generated internal room ID"),
   roomCode: z.string().describe("User-friendly room joining code"), // should probably use stricter zod-defined shapes instead
   hostUserId: roomParticipant.shape.userId,
-  state: roomPlaybackState,
+  participants: z.array(roomParticipant),
+  playbackState: roomPlaybackState,
 });
 export type roomMeta = z.infer<typeof roomMeta>;

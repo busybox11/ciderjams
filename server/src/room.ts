@@ -52,7 +52,8 @@ export class Room {
       roomId,
       roomCode,
       hostUserId: host.userId,
-      state: defaultPlaybackState(),
+      participants: [host],
+      playbackState: defaultPlaybackState(),
     });
 
     const room = new Room(meta);
@@ -76,16 +77,16 @@ export class Room {
   }
 
   roomStatePayload(): RoomStateSchema {
-    const { state: _s, ...rest } = this.#meta;
+    const { playbackState: _s, ...rest } = this.#meta;
     return roomStateSchema.parse(rest);
   }
 
   queueStatePayload(): QueueStateSchema {
-    return queueStateSchema.parse(this.#meta.state.queue);
+    return queueStateSchema.parse(this.#meta.playbackState.queue);
   }
 
   playerStatePayload(): PlayerStateSchema {
-    const { queue: _q, ...rest } = this.#meta.state;
+    const { queue: _q, ...rest } = this.#meta.playbackState;
     return playerStateSchema.parse(rest);
   }
 
@@ -96,8 +97,8 @@ export class Room {
   #patchState(patch: Partial<RoomPlaybackState>): void {
     this.#commit({
       ...this.#meta,
-      state: {
-        ...this.#meta.state,
+      playbackState: {
+        ...this.#meta.playbackState,
         ...patch,
         updatedAtMs: nowMs(),
       },
@@ -106,12 +107,21 @@ export class Room {
 
   join(user: roomParticipant): void {
     this.participants.set(user.userId, user);
+    this.#syncParticipantsIntoMeta();
   }
 
   /** @returns true if the room has no participants left (caller may remove from registry) */
   leave(userId: string): boolean {
     this.participants.delete(userId);
+    if (this.participants.size > 0) this.#syncParticipantsIntoMeta();
     return this.participants.size === 0;
+  }
+
+  #syncParticipantsIntoMeta(): void {
+    this.#commit({
+      ...this.#meta,
+      participants: [...this.participants.values()],
+    });
   }
 
   setQueue(actingUserId: string, entries: QueueSetPayload): void {
@@ -123,7 +133,7 @@ export class Room {
       itemCatalogId: e.itemCatalogId,
     }));
 
-    let { currentPlayingIndex } = this.#meta.state;
+    let { currentPlayingIndex } = this.#meta.playbackState;
     if (queue.length === 0) {
       currentPlayingIndex = 0;
     } else if (currentPlayingIndex >= queue.length) {
@@ -151,7 +161,7 @@ export class Room {
   next(userId: string): void {
     this.assertParticipant(userId);
 
-    const { queue, currentPlayingIndex, repeatMode } = this.#meta.state;
+    const { queue, currentPlayingIndex, repeatMode } = this.#meta.playbackState;
 
     if (queue.length === 0) return;
 
@@ -169,7 +179,7 @@ export class Room {
   previous(userId: string): void {
     this.assertParticipant(userId);
 
-    const { queue, currentPlayingIndex, repeatMode } = this.#meta.state;
+    const { queue, currentPlayingIndex, repeatMode } = this.#meta.playbackState;
 
     if (queue.length === 0) return;
 
