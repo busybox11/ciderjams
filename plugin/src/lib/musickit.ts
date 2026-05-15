@@ -1,8 +1,8 @@
 import {
-  queueStateSchema,
+  queueSetPayload,
   roomCreatePayload,
   type PlayerStateSchema,
-  type QueueStateSchema,
+  type QueueSetPayload,
   type RoomCreatePayload,
 } from "@ciderjams/proto";
 
@@ -25,7 +25,7 @@ function mapPlaybackState(
   }
 }
 
-function mapRepeatMode(
+export function mapRepeatMode(
   mode: MusicKit.PlayerRepeatMode,
 ): PlayerStateSchema["repeatMode"] {
   const modes: PlayerStateSchema["repeatMode"][] = [
@@ -36,19 +36,26 @@ function mapRepeatMode(
   return modes[mode] ?? "REPEAT_OFF";
 }
 
-function mapShuffleMode(
+export function mapShuffleMode(
   mode: MusicKit.PlayerShuffleMode,
 ): PlayerStateSchema["shuffleMode"] {
   return mode === 1 ? "SHUFFLE_ON" : "SHUFFLE_OFF";
 }
 
-export function createQueueStatePayload<T extends boolean = false>(
+export function playbackPositionMs(
   music: MusicKit.MusicKitInstanceLoose,
-  jamQueue?: QueueStateSchema,
+): number {
+  const sec = music.currentPlaybackTime ?? 0;
+  return Math.max(0, Math.round(sec * 1000));
+}
+
+export function createQueuePayload<T extends boolean = false>(
+  music: MusicKit.MusicKitInstanceLoose,
+  jamQueue?: QueueSetPayload | null,
   isRoomCreate?: T,
 ): T extends true
   ? RoomCreatePayload["playbackState"]["queue"]
-  : QueueStateSchema {
+  : QueueSetPayload {
   const queueItems = music.queue._queueItems.map((item) => {
     const jamItem = jamQueue?.find((e) => e.itemCatalogId === item.item.id);
     if (isRoomCreate) {
@@ -67,7 +74,7 @@ export function createQueueStatePayload<T extends boolean = false>(
 
   const schema = isRoomCreate
     ? roomCreatePayload.shape.playbackState.shape.queue
-    : queueStateSchema;
+    : queueSetPayload;
 
   const result = schema.safeParse(queueItems);
 
@@ -79,23 +86,21 @@ export function createQueueStatePayload<T extends boolean = false>(
 
   return result.data as T extends true
     ? RoomCreatePayload["playbackState"]["queue"]
-    : QueueStateSchema;
+    : QueueSetPayload;
 }
 
 export function createRoomCreatePlaybackStatePayload(
   music: MusicKit.MusicKitInstanceLoose,
 ): RoomCreatePayload["playbackState"] {
-  const player = music.player;
-
-  const queue = createQueueStatePayload(music, undefined, true);
+  const queue = createQueuePayload(music, undefined, true);
 
   const result = roomCreatePayload.shape.playbackState.safeParse({
     queue,
-    currentPlayingIndex: player?.nowPlayingItemIndex ?? 0,
-    elapsedTimeMs: (player?.currentPlaybackProgress ?? 0) * 1000,
+    currentPlayingIndex: music.nowPlayingItemIndex ?? 0,
+    elapsedTimeMs: playbackPositionMs(music),
     playbackState: mapPlaybackState(music.playbackState),
-    repeatMode: mapRepeatMode(player?.repeatMode ?? 0),
-    shuffleMode: mapShuffleMode(player?.shuffleMode ?? 0),
+    repeatMode: mapRepeatMode(music.repeatMode ?? 0),
+    shuffleMode: mapShuffleMode(music.shuffleMode ?? 0),
     autoPlay: music.autoplayEnabled,
   });
 
