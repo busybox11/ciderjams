@@ -1,7 +1,10 @@
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
+import { createLogger } from "@ciderjams/proto";
 import { SharePlayInhibitor, type SharePlayParticipant } from "../shareplay";
+
+const log = createLogger("plugin", "stores/shareplay");
 
 export const useSharePlayStore = defineStore("shareplay", () => {
   const active = ref(false);
@@ -25,6 +28,7 @@ export const useSharePlayStore = defineStore("shareplay", () => {
         lastMediaPayload.value = null;
       },
       onMediaStatePublished: (payload) => {
+        log.debug("onMediaStatePublished", payload);
         lastMediaPayload.value = payload;
       },
     });

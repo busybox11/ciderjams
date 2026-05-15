@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { roomParticipant } from '@ciderjams/proto';
 
-const props = defineProps<{
+defineProps<{
   member: roomParticipant;
 }>();
 </script>

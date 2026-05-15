@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useJamStore } from "../stores/main";
 
-const props = defineProps<{
-  item: MusicKit.MediaItem; 
+defineProps<{
+  item: MusicKit.MediaItem;
 }>();
 
 const jamStore = useJamStore();

@@ -7,7 +7,7 @@ import {
 } from "@ciderapp/pluginkit";
 import { devtools } from "@vue/devtools";
 import { createPinia, setActivePinia } from "pinia";
-import { defineCustomElement, onBeforeUnmount, type App } from "vue";
+import { defineCustomElement, type App } from "vue";
 
 import MainModalView from "./components/MainModal/MainModalView.vue";
 import MenuIndicator from "./components/MainModal/MenuIndicator.vue";
@@ -149,10 +149,6 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
       log.log("MusicKit", musickit);
 
       const sharePlayStore = useSharePlayStore();
-      sharePlayStore.activate();
-      onBeforeUnmount(() => {
-        sharePlayStore.deactivate();
-      });
       log.log("SharePlay store", sharePlayStore);
       (window as unknown as { spi: typeof sharePlayStore }).spi =
         sharePlayStore;
