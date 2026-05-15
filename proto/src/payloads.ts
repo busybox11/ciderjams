@@ -99,6 +99,11 @@ export const playerSetShufflePayload = z.object({
 });
 export type PlayerSetShufflePayload = z.infer<typeof playerSetShufflePayload>;
 
+export const playerHostSyncPayload = z.object({
+  playbackState: basePlaybackStateSchema.omit({ queue: true }),
+});
+export type PlayerHostSyncPayload = z.infer<typeof playerHostSyncPayload>;
+
 export const clientEventPayloads = {
   ping: pingPayload,
   "room.create": roomCreatePayload,
@@ -112,6 +117,7 @@ export const clientEventPayloads = {
   "player.previous": playerPreviousPayload,
   "player.setRepeat": playerSetRepeatPayload,
   "player.setShuffle": playerSetShufflePayload,
+  "player.host.sync": playerHostSyncPayload,
 } as const;
 
 export type ClientEvent = keyof typeof clientEventPayloads;

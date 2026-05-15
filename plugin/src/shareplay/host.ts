@@ -4,16 +4,11 @@ import { createLogger } from "@ciderjams/proto";
 
 const log = createLogger("plugin", "shareplay/host");
 
-/** `queue.state` — queue membership / order (rebuild `queue.set` from `music.queue`). */
 export const MK_QUEUE_EVENTS: string[] = [
   "queueItemsDidChange",
-  "queueModified",
+  // "queueModified",
 ];
 
-/**
- * `player.state` — index, elapsed, play/pause, repeat/shuffle/autoplay, skip/sharePlay nav.
- * Throttle `playbackTimeDidChange` before emitting `player.seek` / position updates.
- */
 export const MK_PLAYBACK_EVENTS: string[] = [
   "nowPlayingItemWillChange",
   "nowPlayingItemDidChange",
@@ -35,37 +30,44 @@ export const MK_PLAYBACK_EVENTS: string[] = [
   "sharePlay.previousItem",
 ];
 
-const MUSICKIT_EVENTS: string[] = [...MK_QUEUE_EVENTS, ...MK_PLAYBACK_EVENTS];
+const MK_SUBSCRIBE_EVENTS: string[] = [
+  ...MK_QUEUE_EVENTS,
+  ...MK_PLAYBACK_EVENTS,
+];
+
+export type SharePlayHostOptions = {
+  onQueueSync?: () => void;
+  onPlaybackEvent?: (event: string, ...args: unknown[]) => void;
+};
 
 export class SharePlayHost {
-  private music: MusicKit.MusicKitInstance | null = null;
-  private events: Map<string, (...args: unknown[]) => void> = new Map();
+  private readonly events = new Map<string, (...args: unknown[]) => void>();
 
-  constructor(music: MusicKit.MusicKitInstance) {
-    this.music = music;
-  }
+  constructor(
+    private readonly music: MusicKit.MusicKitInstanceLoose,
+    private readonly options: SharePlayHostOptions = {},
+  ) {}
 
   public inject() {
-    const music = this.music;
-    if (!music) return;
-
-    const dispatcher = getMusicKitAppDispatcher(music);
+    const dispatcher = getMusicKitAppDispatcher(this.music);
     if (!dispatcher) return;
 
-    MUSICKIT_EVENTS.forEach((event) => {
+    for (const event of MK_SUBSCRIBE_EVENTS) {
       const handler = (...args: unknown[]) => {
-        log.debug(...args);
+        log.debug("handleEvent", event, ...args);
+        if (MK_QUEUE_EVENTS.includes(event)) {
+          this.options.onQueueSync?.();
+        } else {
+          this.options.onPlaybackEvent?.(event, ...args);
+        }
       };
       this.events.set(event, handler);
       dispatcher.subscribe(event, handler);
-    });
+    }
   }
 
   public eject() {
-    const music = this.music;
-    if (!music) return;
-
-    const dispatcher = getMusicKitAppDispatcher(music);
+    const dispatcher = getMusicKitAppDispatcher(this.music);
     if (!dispatcher) return;
 
     this.events.forEach((handler, event) => {

@@ -1,62 +1,39 @@
 import { createLogger } from "@ciderjams/proto";
 import { mockSharePlayData } from "./mock";
+import {
+  getMusicKitAppDispatcher,
+  subscribeDispatcher,
+  type MusicKitWithCiderSharePlay,
+} from "./musickit-bridge";
+import type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
+
+export type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
 
 const log = createLogger("plugin", "shareplay");
 
-export interface SharePlayParticipant {
-  id: string;
-  name: string;
-}
-
 export interface SharePlayHooks {
-  onInjected?: (participants: SharePlayParticipant[]) => void;
+  onInjected?: () => void;
   onEjected?: () => void;
-  onMediaStatePublished?: (payload: unknown) => void;
+  onMediaStatePublished?: (payload: SharePlayPublishedMediaState) => void;
 }
-
-type MusicKitInstance = MusicKit.MusicKitInstance & {
-  _sharePlay?: {
-    id: string;
-    mediaState: {
-      capabilities: {
-        autoPlayControl: boolean;
-        repeatControl: boolean;
-        shuffleControl: boolean;
-        volumeControl: boolean;
-      };
-    };
-    participants: SharePlayParticipant[];
-    checkCapability: () => boolean;
-    shouldUpdate: () => boolean;
-    lastKnownElapsedTime: number;
-  };
-  playbackMode: number;
-  services: {
-    dispatcher: {
-      subscribe: (eventName: string, callback: (data: any) => void) => void;
-      unsubscribe: (eventName: string, callback: (data: any) => void) => void;
-    };
-  };
-};
 
 export class SharePlayInhibitor {
   private originalMethods = new Map<
     string,
-    { obj: any; prop: string; original: any }
+    { obj: unknown; prop: string; original: unknown }
   >();
-  private music: MusicKitInstance = (window as any).MusicKit?.getInstance();
-  private onSharePlayMediaStateUpdateBound: ((data: unknown) => void) | null =
-    null;
-  private onSharePlayNextItemBound: (() => void) | null = null;
-  private onSharePlayPreviousItemBound: (() => void) | null = null;
+  private music: MusicKitWithCiderSharePlay | null = null;
+  private dispatcherCleanups: (() => void)[] = [];
 
   constructor(private readonly hooks: SharePlayHooks = {}) {}
 
   /** @returns false if MusicKit was not available */
   public inject(): boolean {
     log.debug("injecting");
-    log.debug("music", this.music);
-    if (!this.music) return false;
+    const mk = MusicKit.getInstance() as MusicKitWithCiderSharePlay | undefined;
+    log.debug("music", mk);
+    if (!mk) return false;
+    this.music = mk;
 
     this.music._sharePlay = {
       id: "cider-jams-session",
@@ -78,65 +55,53 @@ export class SharePlayInhibitor {
       lastKnownElapsedTime: 0,
     };
 
-    if (this.music.services.playActivity) {
-      const activity = this.music.services.playActivity;
-      const originalHandler = activity.handleEvent;
-
-      activity.handleEvent = function (eventName: string, data: any) {
+    const playActivity = (mk as MusicKit.MusicKitInstance).services
+      ?.playActivity as
+      | { handleEvent?: (a: string, b: unknown) => unknown }
+      | undefined;
+    if (playActivity?.handleEvent) {
+      const originalHandler = playActivity.handleEvent;
+      playActivity.handleEvent = function (eventName: string, data: unknown) {
         try {
           log.debug("handleEvent", eventName, data);
           return originalHandler.apply(this, [eventName, data]);
-        } catch (e) {
+        } catch {
           log.warn(`analytics suppressed for event: ${eventName}`);
           return;
         }
       };
     }
 
-    // this.music.playbackMode = 3; // SHAREPLAY_PARTICIPANT
     this.music.playbackMode = 1; // MIXED_CONTENT
-
     this.music.autoplayEnabled = false;
 
-    const raw = (
-      this.music as MusicKitInstance & {
-        onMediaStateUpdate?: (d: unknown) => void;
-      }
-    ).onMediaStateUpdate;
-    if (typeof raw === "function") {
-      this.onSharePlayMediaStateUpdateBound = raw.bind(this.music);
-      this.music.services.dispatcher.subscribe(
-        "sharePlay.mediaStateUpdate",
-        this.onSharePlayMediaStateUpdateBound,
+    const dispatcher = getMusicKitAppDispatcher(this.music);
+    if (dispatcher) {
+      this.dispatcherCleanups.push(
+        subscribeDispatcher(dispatcher, "sharePlay.nextItem", () =>
+          log.debug("nextItem"),
+        ),
+        subscribeDispatcher(dispatcher, "sharePlay.previousItem", () =>
+          log.debug("previousItem"),
+        ),
       );
     }
-    this.onSharePlayNextItemBound = () => {
-      log.debug("nextItem");
-    };
-    this.onSharePlayPreviousItemBound = () => {
-      log.debug("previousItem");
-    };
-    this.music.services.dispatcher.subscribe(
-      "sharePlay.nextItem",
-      this.onSharePlayNextItemBound,
-    );
-    this.music.services.dispatcher.subscribe(
-      "sharePlay.previousItem",
-      this.onSharePlayPreviousItemBound,
-    );
 
-    const forceSkip = async (original: Function) => {
+    const forceSkip = async (
+      original: (...args: unknown[]) => Promise<unknown>,
+    ) => {
       log.debug("forceSkip");
-      const prevMode = this.music.playbackMode;
-      this.music.playbackMode = 1;
+      const m = this.music!;
+      const prevMode = m.playbackMode;
+      m.playbackMode = 1;
       await original();
-      this.music.playbackMode = prevMode;
+      m.playbackMode = prevMode;
     };
 
     this.patch(this.music, "skipToNextItem", forceSkip);
     this.patch(this.music, "skipToPreviousItem", forceSkip);
 
-    this.hooks.onInjected?.(this.music._sharePlay!.participants);
+    this.hooks.onInjected?.();
 
     log.debug("injected");
     return true;
@@ -149,38 +114,17 @@ export class SharePlayInhibitor {
     log.debug("ejecting");
     this.originalMethods.forEach(({ obj, prop, original }, key) => {
       log.debug("restoring original method", key);
-      obj[prop] = original;
+      (obj as Record<string, unknown>)[prop] = original;
     });
     this.originalMethods.clear();
+
+    for (const dispose of this.dispatcherCleanups) dispose();
+    this.dispatcherCleanups = [];
 
     const music = this.music;
     if (music) {
       music._sharePlay = undefined;
       music.playbackMode = 1; // MIXED_CONTENT
-      const dispatcher = music.services?.dispatcher;
-      if (dispatcher) {
-        if (this.onSharePlayMediaStateUpdateBound) {
-          dispatcher.unsubscribe(
-            "sharePlay.mediaStateUpdate",
-            this.onSharePlayMediaStateUpdateBound,
-          );
-          this.onSharePlayMediaStateUpdateBound = null;
-        }
-        if (this.onSharePlayNextItemBound) {
-          dispatcher.unsubscribe(
-            "sharePlay.nextItem",
-            this.onSharePlayNextItemBound,
-          );
-          this.onSharePlayNextItemBound = null;
-        }
-        if (this.onSharePlayPreviousItemBound) {
-          dispatcher.unsubscribe(
-            "sharePlay.previousItem",
-            this.onSharePlayPreviousItemBound,
-          );
-          this.onSharePlayPreviousItemBound = null;
-        }
-      }
     }
 
     this.hooks.onEjected?.();
@@ -188,23 +132,36 @@ export class SharePlayInhibitor {
     log.debug("ejected");
   }
 
-  private patch(obj: any, prop: string, wrapper: Function) {
-    const original = obj[prop];
-    const key = `${obj?.constructor?.name ?? "object"}::${prop}`;
+  private patch(
+    obj: MusicKitWithCiderSharePlay,
+    prop: "skipToNextItem" | "skipToPreviousItem",
+    wrapper: (
+      original: (...args: unknown[]) => Promise<unknown>,
+      ...args: unknown[]
+    ) => Promise<unknown>,
+  ) {
+    const original = (obj as Record<string, unknown>)[prop];
+    if (typeof original !== "function") return;
+    const key = `${(obj as { constructor?: { name?: string } }).constructor?.name ?? "object"}::${prop}`;
     this.originalMethods.set(key, { obj, prop, original });
-    obj[prop] = (...args: any[]) => wrapper(original.bind(obj), ...args);
+    (obj as Record<string, unknown>)[prop] = (...args: unknown[]) =>
+      wrapper(
+        original.bind(obj) as (...a: unknown[]) => Promise<unknown>,
+        ...args,
+      );
   }
 
-  public async syncFromServer(serverData: any) {
+  public async syncFromServer(serverData: SharePlaySyncInput) {
     log.debug("syncFromServer", serverData);
-    if (!this.music) return;
+    const music = this.music;
+    if (!music) return;
 
     const playbackState = serverData.playbackState ?? serverData.state ?? 0;
 
-    this.music.autoplayEnabled = false;
+    music.autoplayEnabled = false;
 
     const dedupedQueue = serverData.queue
-      .map((item: any) => ({
+      .map((item) => ({
         ...item,
         attributes: {
           ...item.attributes,
@@ -217,55 +174,48 @@ export class SharePlayInhibitor {
         },
       }))
       .filter(
-        (item: any, index: number, self: any) =>
-          self.findIndex((t: any) => t.id === item.id) === index,
+        (item, index, self) =>
+          self.findIndex((t) => t.id === item.id) === index,
       );
 
     const serverPlayingItemId =
       serverData.queue[serverData.index ?? serverData.currentPlayingIndex ?? 0]
         ?.id;
     const playingIndex = dedupedQueue.findIndex(
-      (item: any) => item.id === serverPlayingItemId,
+      (item) => item.id === serverPlayingItemId,
     );
 
-    const rawItems = dedupedQueue.map(
-      (item: any) => new MusicKit.MediaItem(item),
+    const instantiatedQueue = dedupedQueue.map(
+      (item) => new MusicKit.MediaItem(item as never),
     );
-    /*
-    const { items: instantiatedQueue, playingIndex } = dedupeQueueByCatalogId(
-      rawItems,
-      serverPlayingIndex,
-    );
-    */
-    const instantiatedQueue = rawItems;
 
-    await this.music.stop();
+    await music.stop();
 
-    await this.music.setQueue({
+    await music.setQueue({
       items: instantiatedQueue,
     });
-    await this.music.changeToMediaAtIndex(playingIndex);
+    await music.changeToMediaAtIndex(playingIndex);
 
     const seekSeconds = (serverData.elapsedTime || 0) / 1000;
 
-    if (this.music._sharePlay) {
-      this.music._sharePlay.lastKnownElapsedTime = seekSeconds;
+    if (music._sharePlay) {
+      music._sharePlay.lastKnownElapsedTime = seekSeconds;
     }
 
     const resyncPlayback = async () => {
-      await this.music.changeToMediaAtIndex(playingIndex);
-      if (serverData.elapsedTime > 0) {
-        await this.music.seekToTime(seekSeconds);
+      await music.changeToMediaAtIndex(playingIndex);
+      if (serverData.elapsedTime && serverData.elapsedTime > 0) {
+        await music.seekToTime(seekSeconds);
       }
     };
 
     if (playbackState === 2) {
       try {
-        await this.music.play();
-        if (serverData.elapsedTime > 0) {
-          await this.music.seekToTime(seekSeconds);
+        await music.play();
+        if (serverData.elapsedTime && serverData.elapsedTime > 0) {
+          await music.seekToTime(seekSeconds);
         }
-        if (this.music.nowPlayingItemIndex !== playingIndex) {
+        if (music.nowPlayingItemIndex !== playingIndex) {
           log.warn("drift after play, re-pinning", playingIndex);
           await resyncPlayback();
         }
@@ -274,7 +224,7 @@ export class SharePlayInhibitor {
       }
     }
 
-    const payload = {
+    const payload: SharePlayPublishedMediaState = {
       autoPlay: serverData.autoPlay ?? true,
       nowPlayingItemIndex: playingIndex,
       queue: instantiatedQueue,
@@ -291,7 +241,7 @@ export class SharePlayInhibitor {
         : "";
 
     const refocusIfWrongItem = async (phase: string) => {
-      const np = this.music.nowPlayingItem;
+      const np = music.nowPlayingItem;
       const got = np?.id != null ? String(np.id) : "";
       if (expectedSongId && got !== expectedSongId) {
         log.warn(
@@ -299,45 +249,28 @@ export class SharePlayInhibitor {
         );
         await resyncPlayback();
       }
-      if (this.music.nowPlayingItemIndex !== playingIndex) {
-        log.warn("index drift ", phase, this.music.nowPlayingItemIndex);
+      if (music.nowPlayingItemIndex !== playingIndex) {
+        log.warn("index drift ", phase, music.nowPlayingItemIndex);
         await resyncPlayback();
       }
     };
 
     log.debug("publishing mediaStateUpdate", payload);
-    const l = this.onSharePlayMediaStateUpdateBound;
-    if (l) {
-      this.music.services.dispatcher.unsubscribe(
-        "sharePlay.mediaStateUpdate",
-        l,
-      );
-    }
-    try {
-      this.music.services.dispatcher.publish(
-        "sharePlay.mediaStateUpdate",
-        payload,
-      );
-      this.hooks.onMediaStatePublished?.(payload);
-    } finally {
-      if (l) {
-        this.music.services.dispatcher.subscribe(
-          "sharePlay.mediaStateUpdate",
-          l,
-        );
-      }
-    }
+    const dispatcher = getMusicKitAppDispatcher(music);
+    dispatcher?.publish("sharePlay.mediaStateUpdate", payload);
+    this.hooks.onMediaStatePublished?.(payload);
 
     await refocusIfWrongItem("post-publish-sync");
     setTimeout(() => void refocusIfWrongItem("post-publish+50ms"), 50);
 
     log.debug("played");
     log.debug("elapsedTime", serverData.elapsedTime);
-    log.debug("currentPlaybackTime", this.music.currentPlaybackTime);
+    log.debug("currentPlaybackTime", music.currentPlaybackTime);
   }
 
   public triggerMockSync() {
     log.debug("triggering mock sync");
-    this.syncFromServer(JSON.parse(mockSharePlayData));
+    const parsed = JSON.parse(mockSharePlayData) as SharePlaySyncInput;
+    void this.syncFromServer(parsed);
   }
 }

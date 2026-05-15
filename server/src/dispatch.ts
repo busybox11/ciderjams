@@ -83,7 +83,10 @@ export type ApplyInRoomResult = {
   roomClosed?: true;
 };
 
-type InRoomEvent = Exclude<ClientEvent, "room.create" | "room.join">;
+type InRoomEvent = Exclude<
+  ClientEvent,
+  "room.create" | "room.join" | "player.host.sync"
+>;
 
 type InRoomHandlerCtx = {
   registry: RoomRegistry;

@@ -1,63 +1,78 @@
 import { defineStore } from "pinia";
-import { ref, shallowRef } from "vue";
+import { ref, shallowRef, type Ref, type ShallowRef } from "vue";
 
 import { createLogger } from "@ciderjams/proto";
-import { SharePlayInhibitor, type SharePlayParticipant } from "../shareplay";
+import {
+  SharePlayInhibitor,
+  type SharePlayPublishedMediaState,
+  type SharePlaySyncInput,
+} from "../shareplay";
 
 const log = createLogger("plugin", "stores/shareplay");
 
-export const useSharePlayStore = defineStore("shareplay", () => {
-  const active = ref(false);
-  const participants = ref<SharePlayParticipant[]>([]);
+export interface SharePlayStore {
+  active: Ref<boolean>;
+  lastMediaPayload: Ref<SharePlayPublishedMediaState | null>;
+  inhibitor: ShallowRef<SharePlayInhibitor | null>;
+  activate: () => void;
+  deactivate: () => void;
+  syncFromServer: (
+    serverData: SharePlaySyncInput,
+  ) => ReturnType<SharePlayInhibitor["syncFromServer"]> | undefined;
+  triggerMockSync: () => void;
+}
 
-  /** last payload published to MusicKit after a successful `syncFromServer` */
-  const lastMediaPayload = ref<unknown>(null);
-  const inhibitor = shallowRef<SharePlayInhibitor | null>(null);
+export const useSharePlayStore = defineStore(
+  "shareplay",
+  (): SharePlayStore => {
+    const active = ref(false);
 
-  function activate() {
-    if (inhibitor.value) return;
+    /** last payload published to MusicKit after a successful `syncFromServer` */
+    const lastMediaPayload = ref<SharePlayPublishedMediaState | null>(null);
+    const inhibitor = shallowRef<SharePlayInhibitor | null>(null);
 
-    const inst = new SharePlayInhibitor({
-      onInjected: (p) => {
-        active.value = true;
-        participants.value = p;
-      },
-      onEjected: () => {
-        active.value = false;
-        participants.value = [];
-        lastMediaPayload.value = null;
-      },
-      onMediaStatePublished: (payload) => {
-        log.debug("onMediaStatePublished", payload);
-        lastMediaPayload.value = payload;
-      },
-    });
-    if (inst.inject()) {
-      inhibitor.value = inst;
+    function activate() {
+      if (inhibitor.value) return;
+
+      const inst = new SharePlayInhibitor({
+        onInjected: () => {
+          active.value = true;
+        },
+        onEjected: () => {
+          active.value = false;
+          lastMediaPayload.value = null;
+        },
+        onMediaStatePublished: (payload) => {
+          log.debug("onMediaStatePublished", payload);
+          lastMediaPayload.value = payload;
+        },
+      });
+      if (inst.inject()) {
+        inhibitor.value = inst;
+      }
     }
-  }
 
-  function deactivate() {
-    inhibitor.value?.eject();
-    inhibitor.value = null;
-  }
+    function deactivate() {
+      inhibitor.value?.eject();
+      inhibitor.value = null;
+    }
 
-  function syncFromServer(serverData: unknown) {
-    return inhibitor.value?.syncFromServer(serverData);
-  }
+    function syncFromServer(serverData: SharePlaySyncInput) {
+      return inhibitor.value?.syncFromServer(serverData);
+    }
 
-  function triggerMockSync() {
-    inhibitor.value?.triggerMockSync();
-  }
+    function triggerMockSync() {
+      inhibitor.value?.triggerMockSync();
+    }
 
-  return {
-    active,
-    participants,
-    lastMediaPayload,
-    inhibitor,
-    activate,
-    deactivate,
-    syncFromServer,
-    triggerMockSync,
-  };
-});
+    return {
+      active,
+      lastMediaPayload,
+      inhibitor,
+      activate,
+      deactivate,
+      syncFromServer,
+      triggerMockSync,
+    };
+  },
+);
