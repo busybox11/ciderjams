@@ -2,10 +2,71 @@ import { useMusicKit } from "@ciderapp/pluginkit";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
-import type { roomParticipant, RoomStateSchema } from "@ciderjams/proto";
+import type {
+  PlayerStateSchema,
+  QueueStateSchema,
+  roomParticipant,
+  RoomStateSchema,
+} from "@ciderjams/proto";
 import { outboundWsMessageSchema } from "@ciderjams/proto";
 import { ciderSyncSocket, type CiderSyncSocket } from "../lib/api";
 import { log } from "../lib/logger";
+
+import { createRoomCreatePlaybackStatePayload } from "../lib/musickit";
+import { useSharePlayStore } from "./shareplay";
+
+function sharePlayPlaybackNumber(
+  playbackState: PlayerStateSchema["playbackState"],
+): number {
+  return playbackState === "FULL_PLAYBACK_ONLY" ||
+    playbackState === "SHAREPLAY_PARTICIPANT"
+    ? 2
+    : 0;
+}
+
+function sharePlayRepeatNumber(
+  repeatMode: PlayerStateSchema["repeatMode"],
+): number {
+  const m: Record<PlayerStateSchema["repeatMode"], number> = {
+    REPEAT_OFF: 0,
+    REPEAT_ALL: 1,
+    REPEAT_ONE: 2,
+  };
+  return m[repeatMode] ?? 0;
+}
+
+function sharePlayShuffleNumber(
+  shuffleMode: PlayerStateSchema["shuffleMode"],
+): number {
+  return shuffleMode === "SHUFFLE_ON" ? 1 : 0;
+}
+
+/** Minimal MusicKit-like queue items from server `queueEntry` rows (full metadata may require catalog API later). */
+function jamQueueToSharePlayQueue(queue: QueueStateSchema) {
+  return queue.map((e) => ({
+    id: e.itemCatalogId,
+    type: "songs",
+    attributes: {
+      playParams: { id: e.itemCatalogId, kind: "song" },
+    },
+  }));
+}
+
+function jamPlaybackToSharePlayPayload(
+  queue: QueueStateSchema,
+  player: PlayerStateSchema,
+) {
+  return {
+    queue: jamQueueToSharePlayQueue(queue),
+    index: player.currentPlayingIndex,
+    currentPlayingIndex: player.currentPlayingIndex,
+    elapsedTime: player.elapsedTimeMs,
+    playbackState: sharePlayPlaybackNumber(player.playbackState),
+    repeatMode: sharePlayRepeatNumber(player.repeatMode),
+    shuffleMode: sharePlayShuffleNumber(player.shuffleMode),
+    autoPlay: player.autoPlay,
+  };
+}
 
 function waitForWebSocketOpen(client: CiderSyncSocket): Promise<void> {
   const { ws } = client;
@@ -38,6 +99,8 @@ export const useJamStore = defineStore("jam-store", () => {
   const socket = shallowRef<CiderSyncSocket | null>(null);
   const identity = ref<roomParticipant | null>(null);
   const currentJam = ref<RoomStateSchema | null>(null);
+  const lastQueueState = shallowRef<QueueStateSchema | null>(null);
+  const lastPlayerState = shallowRef<PlayerStateSchema | null>(null);
 
   function detachSocket() {
     socket.value?.close();
@@ -48,20 +111,47 @@ export const useJamStore = defineStore("jam-store", () => {
     currentJam.value = payload;
   }
 
+  function flushSharePlayFromServerSnapshots() {
+    const q = lastQueueState.value;
+    const p = lastPlayerState.value;
+    if (!q || !("queue" in q) || !p) return;
+
+    const share = useSharePlayStore();
+    if (!share.inhibitor) return;
+
+    const payload = jamPlaybackToSharePlayPayload(q, p);
+    void share.syncFromServer(payload);
+  }
+
   function onSocketMessage(data: unknown) {
     const parsed = outboundWsMessageSchema.safeParse(data);
     if (!parsed.success) {
-      log.warn("Jam socket: bad inbound frame", parsed.error.issues.slice(0, 3));
+      log.warn(
+        "Jam socket: bad inbound frame",
+        parsed.error.issues.slice(0, 3),
+      );
       return;
     }
 
     const msg = parsed.data;
-    if ("type" in msg && msg.type === "error") {
-      log.error("Jam socket error:", msg.message);
+    if ("type" in msg) {
+      if (msg.type === "error") log.error("Jam socket error:", msg.message);
       return;
     }
-    if ("event" in msg && msg.event === "room.state") {
-      applyRoomState(msg.payload as RoomStateSchema);
+    switch (msg.event) {
+      case "room.state":
+        applyRoomState(msg.payload as RoomStateSchema);
+        break;
+      case "queue.state":
+        lastQueueState.value = msg.payload as QueueStateSchema;
+        flushSharePlayFromServerSnapshots();
+        break;
+      case "player.state":
+        lastPlayerState.value = msg.payload as PlayerStateSchema;
+        flushSharePlayFromServerSnapshots();
+        break;
+      default:
+        break;
     }
   }
 
@@ -88,10 +178,18 @@ export const useJamStore = defineStore("jam-store", () => {
       }
     }
 
+    useSharePlayStore().activate();
+
     const client = await getConnectedSocket();
+
+    const mk = MusicKit.getInstance();
+    const roomCreatePlaybackState = createRoomCreatePlaybackStatePayload(mk);
+
     client.send({
       event: "room.create",
-      payload: { user: identity.value },
+      payload: {
+        playbackState: roomCreatePlaybackState,
+      },
     });
   }
 
@@ -102,6 +200,9 @@ export const useJamStore = defineStore("jam-store", () => {
     }
     detachSocket();
     currentJam.value = null;
+    lastQueueState.value = null;
+    lastPlayerState.value = null;
+    useSharePlayStore().deactivate();
   }
 
   async function refreshIdentity() {
@@ -133,6 +234,8 @@ export const useJamStore = defineStore("jam-store", () => {
   return {
     currentJam,
     identity,
+    lastQueueState,
+    lastPlayerState,
     createJam,
     leaveJam,
   };
