@@ -23,14 +23,14 @@ export const playerShuffleMode = z.enum(["SHUFFLE_OFF", "SHUFFLE_ON"]);
 export type PlayerShuffleMode = z.infer<typeof playerShuffleMode>;
 
 /* Internal shapes */
-export const queueEntry = z.object({
+export const queueEntry = z.strictObject({
   queueEntryId: z.string().describe("Server-generated internal queue item ID"),
   ownerUserId: z.string(),
   itemCatalogId: CatalogItemId,
 });
 export type queueEntry = z.infer<typeof queueEntry>;
 
-export const roomPlaybackState = z.object({
+export const roomPlaybackState = z.strictObject({
   queue: z.array(queueEntry),
   currentPlayingIndex: z.int(),
   elapsedTimeMs: z.number(),
@@ -42,7 +42,7 @@ export const roomPlaybackState = z.object({
 });
 export type RoomPlaybackState = z.infer<typeof roomPlaybackState>;
 
-export const roomParticipant = z.object({
+export const roomParticipant = z.strictObject({
   userId: z.string().describe("Apple Music social profile user ID"),
   name: z.string(),
   handle: z.string(),
@@ -50,7 +50,7 @@ export const roomParticipant = z.object({
 });
 export type roomParticipant = z.infer<typeof roomParticipant>;
 
-export const roomMeta = z.object({
+export const roomMeta = z.strictObject({
   roomId: z.string().describe("Server-generated internal room ID"),
   roomCode: z.string().describe("User-friendly room joining code"), // should probably use stricter zod-defined shapes instead
   hostUserId: roomParticipant.shape.userId,
