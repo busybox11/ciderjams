@@ -13,6 +13,7 @@ import { ciderSyncSocket, type CiderSyncSocket } from "../lib/api";
 import { log } from "../lib/logger";
 
 import { createRoomCreatePlaybackStatePayload } from "../lib/musickit";
+import { SharePlayHost } from "../shareplay/host";
 import { useSharePlayStore } from "./shareplay";
 
 function sharePlayPlaybackNumber(
@@ -101,6 +102,7 @@ export const useJamStore = defineStore("jam-store", () => {
   const currentJam = ref<RoomStateSchema | null>(null);
   const lastQueueState = shallowRef<QueueStateSchema | null>(null);
   const lastPlayerState = shallowRef<PlayerStateSchema | null>(null);
+  const sharePlayHost = shallowRef<SharePlayHost | null>(null);
 
   function detachSocket() {
     socket.value?.close();
@@ -179,6 +181,8 @@ export const useJamStore = defineStore("jam-store", () => {
     }
 
     useSharePlayStore().activate();
+    sharePlayHost.value = new SharePlayHost(MusicKit.getInstance());
+    sharePlayHost.value.inject();
 
     const client = await getConnectedSocket();
 
@@ -203,6 +207,8 @@ export const useJamStore = defineStore("jam-store", () => {
     lastQueueState.value = null;
     lastPlayerState.value = null;
     useSharePlayStore().deactivate();
+    sharePlayHost.value?.eject();
+    sharePlayHost.value = null;
   }
 
   async function refreshIdentity() {
