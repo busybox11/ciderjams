@@ -11,6 +11,7 @@ import {
   type QueueStateSchema,
   type roomMeta,
   type roomParticipant,
+  type RoomCreatePayload,
   type RoomPlaybackState,
   type RoomStateSchema,
 } from "@ciderjams/proto";
@@ -36,14 +37,22 @@ export class Room {
     host: roomParticipant,
     roomId: string,
     roomCode: string,
-    playbackState: Omit<RoomPlaybackState, "updatedAtMs">,
+    playbackState: RoomCreatePayload["playbackState"],
   ): Room {
     const meta = roomMetaSchema.parse({
       roomId,
       roomCode,
       hostUserId: host.userId,
       participants: [host],
-      playbackState: { ...playbackState, updatedAtMs: nowMs() },
+      playbackState: {
+        ...playbackState,
+        queue: playbackState.queue.map((item) => ({
+          itemCatalogId: item.itemCatalogId,
+          queueEntryId: newQueueEntryId(),
+          ownerUserId: host.userId,
+        })),
+        updatedAtMs: nowMs(),
+      },
     });
 
     const room = new Room(meta);

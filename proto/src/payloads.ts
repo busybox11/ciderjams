@@ -37,8 +37,20 @@ import {
 export const pingPayload = z.object({});
 export type PingPayload = z.infer<typeof pingPayload>;
 
+/** Client → server: catalog IDs only; server assigns queueEntryId / ownerUserId on create. */
+export const roomCreatePlaybackStateSchema = roomPlaybackState
+  .omit({ updatedAtMs: true })
+  .extend({
+    queue: z.array(
+      queueEntry.omit({ ownerUserId: true, queueEntryId: true }),
+    ),
+  });
+export type RoomCreatePlaybackState = z.infer<
+  typeof roomCreatePlaybackStateSchema
+>;
+
 export const roomCreatePayload = z.object({
-  playbackState: roomPlaybackState.omit({ updatedAtMs: true }),
+  playbackState: roomCreatePlaybackStateSchema,
 });
 export type RoomCreatePayload = z.infer<typeof roomCreatePayload>;
 

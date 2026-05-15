@@ -1,4 +1,4 @@
-import type { roomParticipant, RoomPlaybackState } from "@ciderjams/proto";
+import type { roomParticipant, RoomCreatePayload } from "@ciderjams/proto";
 import { randomBytes } from "node:crypto";
 import { Room } from "./room";
 
@@ -25,7 +25,7 @@ export class RoomRegistry {
 
   createRoom(
     host: roomParticipant,
-    playbackState: Omit<RoomPlaybackState, "updatedAtMs">,
+    playbackState: RoomCreatePayload["playbackState"],
   ): Room {
     const roomId = newRoomId();
     let code = randomRoomCode();
