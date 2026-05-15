@@ -58,16 +58,14 @@ export function createQueuePayload<T extends boolean = false>(
   : QueueSetPayload {
   const queueItems = music.queue._queueItems.map((item) => {
     const jamItem = jamQueue?.find((e) => e.itemCatalogId === item.item.id);
-    if (isRoomCreate) {
-      return {
-        itemCatalogId: item.item.id,
-        ...(jamItem && {
-          queueEntryId: jamItem.queueEntryId,
-          ownerUserId: jamItem.ownerUserId,
-        }),
-      };
-    }
-    return { itemCatalogId: item.item.id };
+
+    return {
+      itemCatalogId: item.item.id,
+      ...(jamItem && {
+        queueEntryId: jamItem.queueEntryId,
+        ownerUserId: jamItem.ownerUserId,
+      }),
+    };
   });
 
   log.debug("queue items", queueItems);
