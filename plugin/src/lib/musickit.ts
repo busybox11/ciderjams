@@ -1,9 +1,11 @@
 import {
+  parsePayload,
   queueSetPayload,
   roomCreatePayload,
   type PlayerStateSchema,
   type QueueSetPayload,
   type RoomCreatePayload,
+  type SchemaInput,
 } from "@ciderjams/proto";
 
 import { createLogger } from "@ciderjams/proto";
@@ -49,13 +51,36 @@ export function playbackPositionMs(
   return Math.max(0, Math.round(sec * 1000));
 }
 
-export function createQueuePayload<T extends boolean = false>(
+const roomCreateQueueSchema = roomCreatePayload.shape.playbackState.shape.queue;
+export function makeQueuePayload(
+  music: MusicKit.MusicKitInstanceLoose,
+  jamQueue: null | undefined,
+  isRoomCreate: true,
+): RoomCreatePayload["playbackState"]["queue"];
+export function makeQueuePayload(
   music: MusicKit.MusicKitInstanceLoose,
   jamQueue?: QueueSetPayload | null,
-  isRoomCreate?: T,
-): T extends true
-  ? RoomCreatePayload["playbackState"]["queue"]
-  : QueueSetPayload {
+  isRoomCreate?: false,
+): QueueSetPayload;
+export function makeQueuePayload(
+  music: MusicKit.MusicKitInstanceLoose,
+  jamQueue?: QueueSetPayload | null,
+  isRoomCreate?: boolean,
+): RoomCreatePayload["playbackState"]["queue"] | QueueSetPayload {
+  if (isRoomCreate) {
+    const queueItems = music.queue._queueItems.map((item) => ({
+      itemCatalogId: item.item.id,
+    })) satisfies SchemaInput<typeof roomCreateQueueSchema>;
+
+    log.debug("queue items", queueItems);
+
+    return parsePayload(
+      roomCreateQueueSchema,
+      queueItems,
+      "Failed to create queue state payload",
+    );
+  }
+
   const queueItems = music.queue._queueItems.map((item) => {
     const jamItem = jamQueue?.find((e) => e.itemCatalogId === item.item.id);
 
@@ -66,53 +91,44 @@ export function createQueuePayload<T extends boolean = false>(
         ownerUserId: jamItem.ownerUserId,
       }),
     };
-  });
+  }) satisfies SchemaInput<typeof queueSetPayload>;
 
   log.debug("queue items", queueItems);
 
-  const schema = isRoomCreate
-    ? roomCreatePayload.shape.playbackState.shape.queue
-    : queueSetPayload;
-
-  const result = schema.safeParse(queueItems);
-
-  if (!result.success) {
-    throw new Error(
-      "Failed to create queue state payload: " + result.error.message,
-    );
-  }
-
-  return result.data as T extends true
-    ? RoomCreatePayload["playbackState"]["queue"]
-    : QueueSetPayload;
+  return parsePayload(
+    queueSetPayload,
+    queueItems,
+    "Failed to create queue state payload",
+  );
 }
 
-export function createRoomCreatePlaybackStatePayload(
+const roomCreatePlaybackStateSchema = roomCreatePayload.shape.playbackState;
+export function makeRoomPlaybackStatePayload(
   music: MusicKit.MusicKitInstanceLoose,
 ): RoomCreatePayload["playbackState"] {
-  const queue = createQueuePayload(music, undefined, true);
+  const queue = makeQueuePayload(music, undefined, true);
 
-  const result = roomCreatePayload.shape.playbackState.safeParse({
+  const playbackState = {
     queue,
     currentPlayingIndex: music.nowPlayingItemIndex ?? 0,
+    isPlaying: music.isPlaying,
     elapsedTimeMs: playbackPositionMs(music),
     playbackState: mapPlaybackState(music.playbackState),
     repeatMode: mapRepeatMode(music.repeatMode ?? 0),
     shuffleMode: mapShuffleMode(music.shuffleMode ?? 0),
     autoPlay: music.autoplayEnabled,
-  });
+  } satisfies SchemaInput<typeof roomCreatePlaybackStateSchema>;
 
-  log.debug("room create playback state payload", result.data);
+  log.debug("room create playback state payload", playbackState);
 
-  if (!result.success) {
-    throw new Error(
-      "Failed to create room create playback state payload: " +
-        result.error.message,
-    );
-  }
+  const parsed = parsePayload(
+    roomCreatePlaybackStateSchema,
+    playbackState,
+    "Failed to create room create playback state payload",
+  );
 
   return {
-    ...result.data,
+    ...parsed,
     queue,
   };
 }

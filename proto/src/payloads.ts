@@ -13,6 +13,7 @@
  * - player.previous
  * - player.setRepeat
  * - player.setShuffle
+ * - player.host.sync
  *
  *
  * The following events will be used to communicate from the server to the client:
@@ -38,19 +39,16 @@ export const pingPayload = z.object({});
 export type PingPayload = z.infer<typeof pingPayload>;
 
 /** Client → server: catalog IDs only; server assigns queueEntryId / ownerUserId on create. */
-export const roomCreatePlaybackStateSchema = roomPlaybackState
-  .omit({ updatedAtMs: true })
-  .extend({
-    queue: z.array(
-      queueEntry.omit({ ownerUserId: true, queueEntryId: true }),
-    ),
-  });
-export type RoomCreatePlaybackState = z.infer<
-  typeof roomCreatePlaybackStateSchema
->;
+
+export const basePlaybackStateSchema = roomPlaybackState.omit({
+  updatedAtMs: true,
+});
+export type BasePlaybackState = z.infer<typeof basePlaybackStateSchema>;
 
 export const roomCreatePayload = z.object({
-  playbackState: roomCreatePlaybackStateSchema,
+  playbackState: basePlaybackStateSchema.extend({
+    queue: z.array(queueEntry.omit({ ownerUserId: true, queueEntryId: true })),
+  }),
 });
 export type RoomCreatePayload = z.infer<typeof roomCreatePayload>;
 

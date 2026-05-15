@@ -33,6 +33,7 @@ export type queueEntry = z.infer<typeof queueEntry>;
 export const roomPlaybackState = z.strictObject({
   queue: z.array(queueEntry),
   currentPlayingIndex: z.int(),
+  isPlaying: z.boolean(),
   elapsedTimeMs: z.number(),
   playbackState: playbackState,
   repeatMode: playerRepeatMode,

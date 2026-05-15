@@ -3,16 +3,16 @@ import {
   queueStateSchema,
   roomMeta as roomMetaSchema,
   roomStateSchema,
+  type BasePlaybackState,
   type PlayerRepeatMode,
   type PlayerShuffleMode,
   type PlayerStateSchema,
   type queueEntry,
   type QueueSetPayload,
   type QueueStateSchema,
+  type RoomCreatePayload,
   type roomMeta,
   type roomParticipant,
-  type RoomCreatePayload,
-  type RoomPlaybackState,
   type RoomStateSchema,
 } from "@ciderjams/proto";
 import { randomBytes } from "node:crypto";
@@ -93,7 +93,7 @@ export class Room {
     this.#meta = roomMetaSchema.parse(next);
   }
 
-  #patchState(patch: Partial<RoomPlaybackState>): void {
+  #patchState(patch: Partial<BasePlaybackState>): void {
     this.#commit({
       ...this.#meta,
       playbackState: {

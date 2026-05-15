@@ -12,7 +12,9 @@ import { outboundWsMessageSchema } from "@ciderjams/proto";
 import { ciderSyncSocket, type CiderSyncSocket } from "../lib/api";
 import { log } from "../lib/logger";
 
-import { createRoomCreatePlaybackStatePayload } from "../lib/musickit";
+import {
+  makeRoomPlaybackStatePayload,
+} from "../lib/musickit";
 import { SharePlayHost } from "../shareplay/host";
 import { useSharePlayStore } from "./shareplay";
 
@@ -181,14 +183,11 @@ export const useJamStore = defineStore("jam-store", () => {
     }
 
     useSharePlayStore().activate();
-    sharePlayHost.value = new SharePlayHost(MusicKit.getInstance());
-    sharePlayHost.value.inject();
 
     const client = await getConnectedSocket();
+    const mk = MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose;
 
-    const mk = MusicKit.getInstance();
-    const roomCreatePlaybackState = createRoomCreatePlaybackStatePayload(mk);
-
+    const roomCreatePlaybackState = makeRoomPlaybackStatePayload(mk);
     client.send({
       event: "room.create",
       payload: {
