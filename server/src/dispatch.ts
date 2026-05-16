@@ -85,7 +85,7 @@ export type ApplyInRoomResult = {
 
 type InRoomEvent = Exclude<
   ClientEvent,
-  "room.create" | "room.join" | "player.host.sync"
+  "room.create" | "room.join"
 >;
 
 type InRoomHandlerCtx = {
@@ -104,7 +104,8 @@ type PlayerCommandEvent =
   | "player.next"
   | "player.previous"
   | "player.setRepeat"
-  | "player.setShuffle";
+  | "player.setShuffle"
+  | "player.host.sync";
 
 function playerCommand<E extends PlayerCommandEvent>(
   event: E,
@@ -191,6 +192,13 @@ const inRoomHandlers: Record<InRoomEvent, InRoomHandler> = {
     "player.setShuffle",
     (room, actorId, data) => {
       room.setShuffle(actorId, data.shuffleMode);
+    },
+  ),
+
+  "player.host.sync": playerCommand(
+    "player.host.sync",
+    (room, actorId, data) => {
+      room.hostSync(actorId, data.playbackState);
     },
   ),
 };

@@ -1,5 +1,7 @@
 import {
   parsePayload,
+  PlayerHostSyncPayload,
+  playerHostSyncPayload,
   queueSetPayload,
   roomCreatePayload,
   type PlayerStateSchema,
@@ -102,21 +104,39 @@ export function makeQueuePayload(
   );
 }
 
+const roomSyncPlaybackStateSchema = playerHostSyncPayload.shape.playbackState;
+export function makePlayerHostSyncPayload(
+  music: MusicKit.MusicKitInstanceLoose,
+): PlayerHostSyncPayload["playbackState"] {
+  const payload = {
+    currentPlayingIndex: music.nowPlayingItemIndex ?? 0,
+    playbackState: mapPlaybackState(music.playbackState),
+    repeatMode: mapRepeatMode(music.repeatMode ?? 0),
+    shuffleMode: mapShuffleMode(music.shuffleMode ?? 0),
+    elapsedTimeMs: playbackPositionMs(music),
+    isPlaying: music.isPlaying,
+    autoPlay: music.autoplayEnabled,
+  } satisfies SchemaInput<typeof roomSyncPlaybackStateSchema>;
+
+  log.debug("player host sync payload", payload);
+
+  return parsePayload(
+    roomSyncPlaybackStateSchema,
+    payload,
+    "Failed to create player host sync payload",
+  );
+}
+
 const roomCreatePlaybackStateSchema = roomCreatePayload.shape.playbackState;
 export function makeRoomPlaybackStatePayload(
   music: MusicKit.MusicKitInstanceLoose,
 ): RoomCreatePayload["playbackState"] {
+  const baseState = makePlayerHostSyncPayload(music);
   const queue = makeQueuePayload(music, undefined, true);
 
   const playbackState = {
+    ...baseState,
     queue,
-    currentPlayingIndex: music.nowPlayingItemIndex ?? 0,
-    isPlaying: music.isPlaying,
-    elapsedTimeMs: playbackPositionMs(music),
-    playbackState: mapPlaybackState(music.playbackState),
-    repeatMode: mapRepeatMode(music.repeatMode ?? 0),
-    shuffleMode: mapShuffleMode(music.shuffleMode ?? 0),
-    autoPlay: music.autoplayEnabled,
   } satisfies SchemaInput<typeof roomCreatePlaybackStateSchema>;
 
   log.debug("room create playback state payload", playbackState);

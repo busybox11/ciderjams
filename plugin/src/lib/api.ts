@@ -3,6 +3,10 @@ import { clientWireMessageSchema } from "@ciderjams/proto";
 import type { App } from "@ciderjams/server/app";
 import { treaty, type Treaty } from "@elysia/eden";
 
+import { createLogger } from "@ciderjams/proto";
+
+const log = createLogger("plugin", "api");
+
 const API_BASE_URL = "http://0.0.0.0:8787";
 
 function normalizeBase(url: string): string {
@@ -25,7 +29,13 @@ export function ciderSyncSocket(query: roomParticipant) {
   const sendRaw = sub.send.bind(sub);
   return Object.assign(sub, {
     send(message: ClientWireMessage) {
-      return sendRaw(clientWireMessageSchema.parse(message) as never);
+      try {
+        return sendRaw(clientWireMessageSchema.parse(message) as never);
+      } catch (error) {
+        log.error("Failed to parse client wire message:", error);
+        log.debug("wire message", message);
+        throw error;
+      }
     },
   });
 }

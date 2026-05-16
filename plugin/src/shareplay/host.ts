@@ -4,12 +4,16 @@ import { createLogger } from "@ciderjams/proto";
 
 const log = createLogger("plugin", "shareplay/host");
 
-export const MK_QUEUE_EVENTS: string[] = [
+export const QUEUE_SYNC_EVENTS: string[] = [
   "queueItemsDidChange",
   // "queueModified",
 ];
 
-export const MK_PLAYBACK_EVENTS: string[] = [
+export const PLAYBACK_TIME_EVENTS: string[] = [
+  "playbackTimeDidChange",
+];
+
+export const PLAYBACK_SYNC_EVENTS: string[] = [
   "nowPlayingItemWillChange",
   "nowPlayingItemDidChange",
   "queuePositionDidChange",
@@ -19,7 +23,6 @@ export const MK_PLAYBACK_EVENTS: string[] = [
   "playbackStop",
   "playbackSeek",
   "playbackScrub",
-  "playbackTimeDidChange",
   "playbackSkip",
   "repeatModeDidChange",
   "shuffleModeDidChange",
@@ -31,22 +34,34 @@ export const MK_PLAYBACK_EVENTS: string[] = [
 ];
 
 const MK_SUBSCRIBE_EVENTS: string[] = [
-  ...MK_QUEUE_EVENTS,
-  ...MK_PLAYBACK_EVENTS,
+  ...QUEUE_SYNC_EVENTS,
+  ...PLAYBACK_TIME_EVENTS,
+  ...PLAYBACK_SYNC_EVENTS,
 ];
 
 export type SharePlayHostOptions = {
-  onQueueSync?: () => void;
-  onPlaybackEvent?: (event: string, ...args: unknown[]) => void;
+  onSyncQueue?: () => void;
+  onSyncPlayback?: () => void;
 };
 
 export class SharePlayHost {
   private readonly events = new Map<string, (...args: unknown[]) => void>();
+  private lastPlaybackSync = 0;
+  private playbackSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly music: MusicKit.MusicKitInstanceLoose,
     private readonly options: SharePlayHostOptions = {},
   ) {}
+
+  private triggerPlaybackSync() {
+    if (this.playbackSyncTimer) return;
+    this.playbackSyncTimer = setTimeout(() => {
+      this.options.onSyncPlayback?.();
+      this.lastPlaybackSync = Date.now();
+      this.playbackSyncTimer = null;
+    }, 50);
+  }
 
   public inject() {
     const dispatcher = getMusicKitAppDispatcher(this.music);
@@ -55,10 +70,16 @@ export class SharePlayHost {
     for (const event of MK_SUBSCRIBE_EVENTS) {
       const handler = (...args: unknown[]) => {
         log.debug("handleEvent", event, ...args);
-        if (MK_QUEUE_EVENTS.includes(event)) {
-          this.options.onQueueSync?.();
-        } else {
-          this.options.onPlaybackEvent?.(event, ...args);
+
+        if (QUEUE_SYNC_EVENTS.includes(event)) {
+          this.options.onSyncQueue?.();
+        } else if (PLAYBACK_SYNC_EVENTS.includes(event)) {
+          this.triggerPlaybackSync();
+        } else if (PLAYBACK_TIME_EVENTS.includes(event)) {
+          const now = Date.now();
+          if (now - this.lastPlaybackSync >= 10000) {
+            this.triggerPlaybackSync();
+          }
         }
       };
       this.events.set(event, handler);

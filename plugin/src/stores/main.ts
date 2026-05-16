@@ -13,11 +13,9 @@ import { ciderSyncSocket, type CiderSyncSocket } from "../lib/api";
 import { log } from "../lib/logger";
 
 import {
+  makePlayerHostSyncPayload,
   makeQueuePayload,
   makeRoomPlaybackStatePayload,
-  mapRepeatMode,
-  mapShuffleMode,
-  playbackPositionMs,
 } from "../lib/musickit";
 import type { SharePlaySyncInput } from "../shareplay";
 import { SharePlayHost } from "../shareplay/host";
@@ -110,13 +108,8 @@ export const useJamStore = defineStore("jam-store", () => {
   const lastQueueState = shallowRef<QueueStateSchema | null>(null);
   const lastPlayerState = shallowRef<PlayerStateSchema | null>(null);
   const sharePlayHost = shallowRef<SharePlayHost | null>(null);
-  /** temporary debounce to prevent excessive host MK echoes */
-  const hostPushSuppressUntil = ref(0);
-  const lastHostTimeSeekSentAt = ref(0);
 
-  function bumpHostPushSuppress() {
-    hostPushSuppressUntil.value = Date.now() + 160;
-  }
+  const isHost = () => sharePlayHost.value !== null;
 
   function detachSocket() {
     socket.value?.close();
@@ -159,12 +152,12 @@ export const useJamStore = defineStore("jam-store", () => {
         applyRoomState(msg.payload as RoomStateSchema);
         break;
       case "queue.state":
-        bumpHostPushSuppress();
+        if (isHost()) return;
         lastQueueState.value = msg.payload as QueueStateSchema;
         flushSharePlayFromServerSnapshots();
         break;
       case "player.state":
-        bumpHostPushSuppress();
+        if (isHost()) return;
         lastPlayerState.value = msg.payload as PlayerStateSchema;
         flushSharePlayFromServerSnapshots();
         break;
@@ -210,7 +203,6 @@ export const useJamStore = defineStore("jam-store", () => {
     });
 
     const pushQueueFromMusicKit = () => {
-      if (Date.now() < hostPushSuppressUntil.value) return;
       const s = socket.value;
       if (!s || s.ws.readyState !== WebSocket.OPEN) return;
       try {
@@ -221,73 +213,21 @@ export const useJamStore = defineStore("jam-store", () => {
       }
     };
 
-    const pushPlaybackFromMusicKit = (mkEvent: string) => {
-      if (Date.now() < hostPushSuppressUntil.value) return;
+    const pushPlaybackFromMusicKit = () => {
       const s = socket.value;
       if (!s || s.ws.readyState !== WebSocket.OPEN) return;
 
-      switch (mkEvent) {
-        case "playbackStateDidChange":
-          s.send({
-            event: "player.host.sync",
-            payload: {
-              playbackState: makeRoomPlaybackStatePayload(mk),
-            },
-          });
-          break;
-        case "playbackPlay":
-          s.send({ event: "player.play", payload: {} });
-          break;
-        case "playbackPause":
-        case "playbackStop":
-          s.send({ event: "player.pause", payload: {} });
-          break;
-        case "playbackSeek":
-        case "playbackScrub":
-          s.send({
-            event: "player.seek",
-            payload: { positionMs: playbackPositionMs(mk) },
-          });
-          break;
-        case "playbackTimeDidChange": {
-          const t = Date.now();
-          if (t - lastHostTimeSeekSentAt.value < 450) return;
-          lastHostTimeSeekSentAt.value = t;
-          s.send({
-            event: "player.seek",
-            payload: { positionMs: playbackPositionMs(mk) },
-          });
-          break;
-        }
-        case "repeatModeDidChange":
-          s.send({
-            event: "player.setRepeat",
-            payload: { repeatMode: mapRepeatMode(mk.player?.repeatMode ?? 0) },
-          });
-          break;
-        case "shuffleModeDidChange":
-          s.send({
-            event: "player.setShuffle",
-            payload: {
-              shuffleMode: mapShuffleMode(mk.player?.shuffleMode ?? 0),
-            },
-          });
-          break;
-        case "playbackSkip":
-        case "sharePlay.nextItem":
-          s.send({ event: "player.next", payload: {} });
-          break;
-        case "sharePlay.previousItem":
-          s.send({ event: "player.previous", payload: {} });
-          break;
-        default:
-          break;
-      }
+      s.send({
+        event: "player.host.sync",
+        payload: {
+          playbackState: makePlayerHostSyncPayload(mk),
+        },
+      });
     };
 
     sharePlayHost.value = new SharePlayHost(mk, {
-      onQueueSync: pushQueueFromMusicKit,
-      onPlaybackEvent: pushPlaybackFromMusicKit,
+      onSyncQueue: pushQueueFromMusicKit,
+      onSyncPlayback: pushPlaybackFromMusicKit,
     });
     sharePlayHost.value.inject();
   }
@@ -304,8 +244,6 @@ export const useJamStore = defineStore("jam-store", () => {
     useSharePlayStore().deactivate();
     sharePlayHost.value?.eject();
     sharePlayHost.value = null;
-    hostPushSuppressUntil.value = 0;
-    lastHostTimeSeekSentAt.value = 0;
   }
 
   async function refreshIdentity() {

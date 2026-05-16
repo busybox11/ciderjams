@@ -75,6 +75,12 @@ export class Room {
     }
   }
 
+  assertHost(userId: string): void {
+    if (this.#meta.hostUserId !== userId) {
+      throw new Error("not the host of this room");
+    }
+  }
+
   roomStatePayload(): RoomStateSchema {
     const { playbackState: _s, ...rest } = this.#meta;
     return roomStateSchema.parse(rest);
@@ -193,11 +199,20 @@ export class Room {
 
   setRepeat(userId: string, mode: PlayerRepeatMode): void {
     this.assertParticipant(userId);
+    
     this.#patchState({ repeatMode: mode });
   }
 
   setShuffle(userId: string, mode: PlayerShuffleMode): void {
     this.assertParticipant(userId);
+
     this.#patchState({ shuffleMode: mode });
+  }
+
+  hostSync(userId: string, state: Omit<BasePlaybackState, "queue">): void {
+    this.assertParticipant(userId);
+    this.assertHost(userId);
+
+    this.#patchState(state);
   }
 }
