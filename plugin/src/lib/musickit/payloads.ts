@@ -53,6 +53,16 @@ export function playbackPositionMs(
   return Math.max(0, Math.round(sec * 1000));
 }
 
+export function getItemCatalogId(item: MusicKit.MediaItem): string {
+  // prefer the global catalogId if it exists, to prevent user library specific items
+  // TODO: maybe use zod validator to prevent non-global catalogId items id shapes?
+  // ex. AMItemCatalogId = z.string().regex(/^[0-9]+$/);
+  //     AMItemLibraryId = z.string().regex(/^i\.[A-Za-z0-9]+$/); (maybe)
+
+  log.debug("item", item);
+  return item.attributes?.playParams?.catalogId ?? item.id;
+}
+
 const roomCreateQueueSchema = roomCreatePayload.shape.playbackState.shape.queue;
 export function makeQueuePayload(
   music: MusicKit.MusicKitInstanceLoose,
@@ -84,10 +94,12 @@ export function makeQueuePayload(
   }
 
   const queueItems = music.queue._queueItems.map((item) => {
-    const jamItem = jamQueue?.find((e) => e.itemCatalogId === item.item.id);
+    const itemCatalogId = getItemCatalogId(item.item);
+
+    const jamItem = jamQueue?.find((e) => e.itemCatalogId === itemCatalogId);
 
     return {
-      itemCatalogId: item.item.id,
+      itemCatalogId,
       ...(jamItem && {
         queueEntryId: jamItem.queueEntryId,
         ownerUserId: jamItem.ownerUserId,
