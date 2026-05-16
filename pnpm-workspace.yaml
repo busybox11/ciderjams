@@ -2,3 +2,4 @@ packages:
   - plugin
   - server
   - proto
+  - debug
