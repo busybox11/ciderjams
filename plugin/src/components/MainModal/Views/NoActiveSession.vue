@@ -41,7 +41,7 @@ const joinJam = async () => {
       </button>
 
       <div class="ciderjams-input-container">
-        <input type="text" class="c-input ciderjams-input" placeholder="Enter session code" v-model="roomCode" />
+        <input type="text" class="c-input ciderjams-input" placeholder="Enter session code" v-model="roomCode" @keyup.enter="joinJam" />
 
         <button class="ciderjams-join-button" @click="joinJam">
           <CComponent
