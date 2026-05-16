@@ -9,9 +9,7 @@ export const QUEUE_SYNC_EVENTS: string[] = [
   // "queueModified",
 ];
 
-export const PLAYBACK_TIME_EVENTS: string[] = [
-  "playbackTimeDidChange",
-];
+export const PLAYBACK_TIME_EVENTS: string[] = ["playbackTimeDidChange"];
 
 export const PLAYBACK_SYNC_EVENTS: string[] = [
   "nowPlayingItemWillChange",
@@ -29,8 +27,6 @@ export const PLAYBACK_SYNC_EVENTS: string[] = [
   "autoplayEnabledDidChange",
   "playerActivate",
   "playerExit",
-  "sharePlay.nextItem",
-  "sharePlay.previousItem",
 ];
 
 const MK_SUBSCRIBE_EVENTS: string[] = [
@@ -72,12 +68,15 @@ export class SharePlayHost {
         log.debug("handleEvent", event, ...args);
 
         if (QUEUE_SYNC_EVENTS.includes(event)) {
+          log.debug("triggerQueueSync");
           this.options.onSyncQueue?.();
         } else if (PLAYBACK_SYNC_EVENTS.includes(event)) {
+          log.debug("triggerPlaybackSync");
           this.triggerPlaybackSync();
         } else if (PLAYBACK_TIME_EVENTS.includes(event)) {
           const now = Date.now();
           if (now - this.lastPlaybackSync >= 10000) {
+            log.debug("triggerPlaybackSync (time)");
             this.triggerPlaybackSync();
           }
         }

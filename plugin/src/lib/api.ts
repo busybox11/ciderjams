@@ -30,6 +30,7 @@ export function ciderSyncSocket(query: roomParticipant) {
   return Object.assign(sub, {
     send(message: ClientWireMessage) {
       try {
+        log.debug("sending wire message", message);
         return sendRaw(clientWireMessageSchema.parse(message) as never);
       } catch (error) {
         log.error("Failed to parse client wire message:", error);
