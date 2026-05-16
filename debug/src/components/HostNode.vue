@@ -14,7 +14,10 @@ import {
   type JamHostSessionHandle,
 } from "@plugin/lib/jam/session";
 import { ManualJamHostSyncSource } from "@plugin/lib/jam/sync-manual";
-import { onUnmounted, ref, shallowRef } from "vue";
+import { computed, onUnmounted, ref, shallowRef } from "vue";
+
+/** Same throttle as `SharePlayHost` for `playbackTimeDidChange`. */
+const PLAYBACK_TIME_SYNC_MS = 10_000;
 
 const DEBUG_PARTICIPANT: roomParticipant = {
   userId: "debug-host-user",
@@ -35,14 +38,74 @@ const seekMsInput = ref(0);
 
 const playing = ref(false);
 const queuePreview = ref<string[]>([]);
+const elapsedMsDisplay = ref(0);
+
+let playbackTicker: ReturnType<typeof setInterval> | null = null;
+let lastTickerWallMs = 0;
+/** Wall clock of last `player.host.sync` push (matches SharePlayHost `lastPlaybackSync`). */
+let lastPlaybackPushWallMs = 0;
 
 const lastRoomState = shallowRef<RoomStateSchema | null>(null);
 const lastQueueState = shallowRef<QueueStateSchema | null>(null);
 const lastPlayerState = shallowRef<PlayerStateSchema | null>(null);
 
+/** Mirrors server `Room.previous` / `Room.next` “meaningful skip” rules. */
+const skipAvailability = computed(() => {
+  const qlen =
+    lastQueueState.value?.length ?? playerAdapter.getQueueSnapshot().length;
+  if (!connected.value || qlen === 0) {
+    return { previous: false, next: false };
+  }
+  const p = lastPlayerState.value;
+  if (!p) {
+    return { previous: true, next: true };
+  }
+  const lastIdx = qlen - 1;
+  const previous =
+    p.currentPlayingIndex > 0 || p.repeatMode === "REPEAT_ALL";
+  const next =
+    p.currentPlayingIndex < lastIdx ||
+    p.repeatMode === "REPEAT_ALL" ||
+    p.repeatMode === "REPEAT_ONE";
+  return { previous, next };
+});
+
 function syncUi() {
   queuePreview.value = playerAdapter.getQueueSnapshot();
   playing.value = playerAdapter.isPlaying;
+  elapsedMsDisplay.value = playerAdapter.elapsedTimeMs;
+}
+
+function pushPlaybackSync() {
+  manualSync.triggerPlaybackSync();
+  lastPlaybackPushWallMs = Date.now();
+}
+
+function stopPlaybackTicker() {
+  if (playbackTicker != null) clearInterval(playbackTicker);
+  playbackTicker = null;
+}
+
+function startPlaybackTicker() {
+  stopPlaybackTicker();
+  lastTickerWallMs = performance.now();
+  playbackTicker = setInterval(() => {
+    const nowPerf = performance.now();
+    const dt = nowPerf - lastTickerWallMs;
+    lastTickerWallMs = nowPerf;
+
+    if (!connected.value || !socketRef.value) return;
+
+    if (playerAdapter.isPlaying) {
+      playerAdapter.advanceElapsedMs(dt);
+      syncUi();
+
+      const wallNow = Date.now();
+      if (wallNow - lastPlaybackPushWallMs >= PLAYBACK_TIME_SYNC_MS) {
+        pushPlaybackSync();
+      }
+    }
+  }, 250);
 }
 
 function onSocketData(data: unknown) {
@@ -61,7 +124,12 @@ function onSocketData(data: unknown) {
     return;
   }
   if (msg.event === "player.state") {
-    lastPlayerState.value = msg.payload as PlayerStateSchema;
+    const p = msg.payload as PlayerStateSchema;
+    lastPlayerState.value = p;
+    playerAdapter.applyServerPlayerState(p);
+    seekMsInput.value = p.elapsedTimeMs;
+    lastPlaybackPushWallMs = Date.now();
+    syncUi();
   }
 }
 
@@ -80,10 +148,13 @@ async function createRoom() {
     playerAdapter,
     syncSource: manualSync,
   });
+  lastPlaybackPushWallMs = Date.now();
+  startPlaybackTicker();
   syncUi();
 }
 
 function leaveRoom() {
+  stopPlaybackTicker();
   sessionRef.value?.stop();
   sessionRef.value = null;
 
@@ -112,15 +183,27 @@ function togglePlayPause() {
   if (playerAdapter.getQueueSnapshot().length === 0) return;
   if (playerAdapter.isPlaying) playerAdapter.pause();
   else playerAdapter.play();
-  manualSync.triggerPlaybackSync();
+  pushPlaybackSync();
   syncUi();
+}
+
+function sendSkipPrevious() {
+  const s = socketRef.value;
+  if (!s || s.ws.readyState !== WebSocket.OPEN) return;
+  s.send({ event: "player.previous", payload: {} });
+}
+
+function sendSkipNext() {
+  const s = socketRef.value;
+  if (!s || s.ws.readyState !== WebSocket.OPEN) return;
+  s.send({ event: "player.next", payload: {} });
 }
 
 function applySeek() {
   const n = Number(seekMsInput.value);
   if (Number.isNaN(n)) return;
   playerAdapter.seek(n);
-  manualSync.triggerPlaybackSync();
+  pushPlaybackSync();
   syncUi();
 }
 
@@ -154,10 +237,28 @@ onUnmounted(() => leaveRoom());
       </button>
     </div>
 
+    <div class="row skip-row">
+      <button
+        type="button"
+        :disabled="!connected || !skipAvailability.previous"
+        @click="sendSkipPrevious"
+      >
+        Previous
+      </button>
+      <button
+        type="button"
+        :disabled="!connected || !skipAvailability.next"
+        @click="sendSkipNext"
+      >
+        Next
+      </button>
+    </div>
+
     <div class="row">
       <button type="button" :disabled="!connected" @click="togglePlayPause">
         {{ playing ? "Pause" : "Play" }}
       </button>
+      <span class="elapsed-hint">Adapter elapsed: {{ elapsedMsDisplay }} ms</span>
       <label>
         Seek ms
         <input v-model.number="seekMsInput" type="number" min="0" step="100" :disabled="!connected" />
@@ -201,6 +302,10 @@ onUnmounted(() => leaveRoom());
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 1rem;
+}
+.elapsed-hint {
+  font-size: 0.85rem;
+  color: #94a3b8;
 }
 button {
   padding: 0.25rem 0.5rem;

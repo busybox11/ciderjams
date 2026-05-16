@@ -1,7 +1,7 @@
 import {
-  type ClientWireMessage,
   clientWireMessageSchema,
   roomParticipant,
+  type ClientWireMessage,
 } from "@ciderjams/proto";
 import { Elysia, ValidationError } from "elysia";
 import { log } from "./logger";
@@ -33,13 +33,11 @@ export const app = new Elysia()
       hub.init(asHubSocket(ws), ws.data.query);
     },
     message(ws, msg) {
-      log.log("ws ←", msg.event);
+      const user = ws.data.query;
+      log.log("ws ←", `@${user.handle}: ${msg.event}`);
+
       try {
-        hub.onMessage(
-          asHubSocket(ws),
-          registry,
-          msg as ClientWireMessage,
-        );
+        hub.onMessage(asHubSocket(ws), registry, msg as ClientWireMessage);
       } catch (e) {
         log.error("ws handler error", e instanceof Error ? e.message : e);
         hub.error(asHubSocket(ws), "server error");

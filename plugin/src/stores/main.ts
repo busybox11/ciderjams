@@ -21,6 +21,7 @@ import {
   waitForWebSocketOpen,
   type JamHostSessionHandle,
 } from "../lib/jam/session";
+import { SharePlayGuestActions } from "../shareplay/guest-actions";
 import { useSharePlayStore } from "./shareplay";
 
 export const useJamStore = defineStore("jam-store", () => {
@@ -30,6 +31,7 @@ export const useJamStore = defineStore("jam-store", () => {
   const lastQueueState = shallowRef<QueueStateSchema | null>(null);
   const lastPlayerState = shallowRef<PlayerStateSchema | null>(null);
   const jamHostSession = shallowRef<JamHostSessionHandle | null>(null);
+  const guestActions = shallowRef<SharePlayGuestActions | null>(null);
 
   const isHost = () => jamHostSession.value !== null;
 
@@ -144,6 +146,16 @@ export const useJamStore = defineStore("jam-store", () => {
     useSharePlayStore().activate();
 
     const client = await getConnectedSocket();
+    guestActions.value?.stop();
+    const mk = MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose;
+    guestActions.value = new SharePlayGuestActions(
+      mk,
+      client,
+      () =>
+        useSharePlayStore().inhibitor?.isSuppressingGuestActions() ?? false,
+      () => lastQueueState.value,
+    );
+    guestActions.value.start();
     client.send({
       event: "room.join",
       payload: { roomCode: code },
@@ -153,6 +165,8 @@ export const useJamStore = defineStore("jam-store", () => {
   function leaveJam() {
     jamHostSession.value?.stop();
     jamHostSession.value = null;
+    guestActions.value?.stop();
+    guestActions.value = null;
 
     const s = socket.value;
     if (s?.ws.readyState === WebSocket.OPEN && currentJam.value) {

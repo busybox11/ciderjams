@@ -150,12 +150,12 @@ export class Room {
 
   play(userId: string): void {
     this.assertParticipant(userId);
-    this.#patchState({ playbackState: "FULL_PLAYBACK_ONLY" });
+    this.#patchState({ isPlaying: true, playbackState: "FULL_PLAYBACK_ONLY" });
   }
 
   pause(userId: string): void {
     this.assertParticipant(userId);
-    this.#patchState({});
+    this.#patchState({ isPlaying: false });
   }
 
   seek(userId: string, positionMs: number): void {

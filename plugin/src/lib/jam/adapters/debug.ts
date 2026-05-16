@@ -4,12 +4,13 @@ import {
   queueSetPayload,
   roomCreatePayload,
   type playbackState,
+  type PlayerHostSyncPayload,
   type PlayerRepeatMode,
   type PlayerShuffleMode,
-  type QueueStateSchema,
+  type PlayerStateSchema,
   type QueueSetPayload,
+  type QueueStateSchema,
   type RoomCreatePayload,
-  type PlayerHostSyncPayload,
 } from "@ciderjams/proto";
 
 import type { JamHostPlayerAdapter } from "../player-adapter";
@@ -61,6 +62,25 @@ export class DebugJamHostPlayerAdapter implements JamHostPlayerAdapter {
     this.elapsedTimeMs = Math.max(0, Math.round(positionMs));
   }
 
+  advanceElapsedMs(deltaMs: number): void {
+    if (!this.isPlaying || this.catalogIds.length === 0) return;
+    this.elapsedTimeMs = Math.max(0, this.elapsedTimeMs + Math.round(deltaMs));
+  }
+
+  applyServerPlayerState(p: PlayerStateSchema): void {
+    if (this.catalogIds.length === 0) return;
+    const last = this.catalogIds.length - 1;
+    this.currentPlayingIndex = Math.min(
+      Math.max(0, p.currentPlayingIndex),
+      last,
+    );
+    this.elapsedTimeMs = Math.max(0, p.elapsedTimeMs);
+    this.isPlaying = p.isPlaying;
+    this.repeatMode = p.repeatMode;
+    this.shuffleMode = p.shuffleMode;
+    this.autoPlay = p.autoPlay;
+  }
+
   private playbackEnum(): playbackState {
     return this.catalogIds.length === 0 ? "PREVIEW_ONLY" : "FULL_PLAYBACK_ONLY";
   }
@@ -108,11 +128,7 @@ export class DebugJamHostPlayerAdapter implements JamHostPlayerAdapter {
         }),
       };
     });
-    return parsePayload(
-      queueSetPayload,
-      items,
-      "debug queue.set payload",
-    );
+    return parsePayload(queueSetPayload, items, "debug queue.set payload");
   }
 
   getHostSyncPlaybackState(): PlayerHostSyncPayload["playbackState"] {

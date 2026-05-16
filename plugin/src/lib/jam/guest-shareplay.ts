@@ -5,11 +5,10 @@ import type {
 
 import type { SharePlaySyncInput } from "../../shareplay/types";
 
-function sharePlayPlaybackNumber(
-  playbackState: PlayerStateSchema["playbackState"],
-): number {
-  return playbackState === "FULL_PLAYBACK_ONLY" ||
-    playbackState === "SHAREPLAY_PARTICIPANT"
+function sharePlayPlaybackNumber(player: PlayerStateSchema): number {
+  if (!player.isPlaying) return 0;
+  return player.playbackState === "FULL_PLAYBACK_ONLY" ||
+    player.playbackState === "SHAREPLAY_PARTICIPANT"
     ? 2
     : 0;
 }
@@ -51,7 +50,7 @@ export function jamPlaybackToSharePlayPayload(
     index: player.currentPlayingIndex,
     currentPlayingIndex: player.currentPlayingIndex,
     elapsedTime: player.elapsedTimeMs,
-    playbackState: sharePlayPlaybackNumber(player.playbackState),
+    playbackState: sharePlayPlaybackNumber(player),
     repeatMode: sharePlayRepeatNumber(player.repeatMode),
     shuffleMode: sharePlayShuffleNumber(player.shuffleMode),
     autoPlay: player.autoPlay,

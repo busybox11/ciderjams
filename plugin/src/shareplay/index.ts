@@ -31,6 +31,8 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
   private dispatcherCleanups: (() => void)[] = [];
   private currentHooks: SharePlayGuestAdapterHooks;
   private lastServerQueueIds: string[] | null = null;
+  private applyingServerSync = false;
+  private suppressGuestActionsUntil = 0;
 
   constructor(private readonly hooks: SharePlayHooks = {}) {
     this.currentHooks = hooks;
@@ -168,6 +170,28 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     const music = this.music;
     if (!music) return;
 
+    this.applyingServerSync = true;
+    this.suppressGuestActionsUntil = Date.now() + 750;
+    try {
+      await this.applyServerSync(music, serverData);
+    } finally {
+      this.suppressGuestActionsUntil = Date.now() + 750;
+      this.applyingServerSync = false;
+    }
+  }
+
+  public isSuppressingGuestActions(): boolean {
+    return (
+      this.applyingServerSync || Date.now() < this.suppressGuestActionsUntil
+    );
+  }
+
+  private async applyServerSync(
+    music: MusicKitWithCiderSharePlay,
+    serverData: SharePlaySyncInput,
+  ) {
+    log.debug("applyServerSync", serverData);
+
     const playbackState = serverData.playbackState ?? serverData.state ?? 0;
 
     music.autoplayEnabled = false;
@@ -228,6 +252,11 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       await music.setQueue({
         items: instantiatedQueue,
       });
+
+      // internally calls PlaybackController.changeToMediaAtIndex
+      // which triggers MediaItemPlayback.startMediaItemPlayback
+      // Ignores pause, immediately plays the item
+      // TODO: don't do this
       await music.changeToMediaAtIndex(playingIndex);
       didApplyPlaybackPosition = true;
     } else if (music.nowPlayingItemIndex !== playingIndex) {
