@@ -12,7 +12,7 @@ import {
 
 import { createLogger } from "@ciderjams/proto";
 
-const log = createLogger("plugin", "lib/musickit");
+const log = createLogger("plugin", "lib/musickit/payloads");
 
 function mapPlaybackState(
   state: MusicKit.PlaybackStates,

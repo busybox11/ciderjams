@@ -1,4 +1,5 @@
 import { getMusicKitAppDispatcher } from "./musickit-bridge";
+import type { ISharePlayHostAdapter, SharePlayHostAdapterHooks } from "./adapter";
 
 import { createLogger } from "@ciderjams/proto";
 
@@ -36,14 +37,16 @@ const MK_SUBSCRIBE_EVENTS: string[] = [
 ];
 
 export type SharePlayHostOptions = {
+  // deprecated, moved to inject() hooks
   onSyncQueue?: () => void;
   onSyncPlayback?: () => void;
 };
 
-export class SharePlayHost {
+export class SharePlayHost implements ISharePlayHostAdapter {
   private readonly events = new Map<string, (...args: unknown[]) => void>();
   private lastPlaybackSync = 0;
   private playbackSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private hooks: SharePlayHostAdapterHooks = {};
 
   constructor(
     private readonly music: MusicKit.MusicKitInstanceLoose,
@@ -53,23 +56,27 @@ export class SharePlayHost {
   private triggerPlaybackSync() {
     if (this.playbackSyncTimer) return;
     this.playbackSyncTimer = setTimeout(() => {
-      this.options.onSyncPlayback?.();
+      this.hooks.onSyncPlayback?.() ?? this.options.onSyncPlayback?.();
       this.lastPlaybackSync = Date.now();
       this.playbackSyncTimer = null;
     }, 50);
   }
 
-  public inject() {
+  public inject(hooks?: SharePlayHostAdapterHooks) {
+    if (hooks) {
+      this.hooks = hooks;
+    }
+
     const dispatcher = getMusicKitAppDispatcher(this.music);
     if (!dispatcher) return;
 
     for (const event of MK_SUBSCRIBE_EVENTS) {
-      const handler = (...args: unknown[]) => {
-        log.debug("handleEvent", event, ...args);
+      const handler = (..._args: unknown[]) => {
+        // log.debug("handleEvent", event, ..._args);
 
         if (QUEUE_SYNC_EVENTS.includes(event)) {
           log.debug("triggerQueueSync");
-          this.options.onSyncQueue?.();
+          this.hooks.onSyncQueue?.() ?? this.options.onSyncQueue?.();
         } else if (PLAYBACK_SYNC_EVENTS.includes(event)) {
           log.debug("triggerPlaybackSync");
           this.triggerPlaybackSync();

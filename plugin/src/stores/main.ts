@@ -11,95 +11,17 @@ import type {
 import { outboundWsMessageSchema } from "@ciderjams/proto";
 import { ciderSyncSocket, type CiderSyncSocket } from "../lib/api";
 import { log } from "../lib/logger";
-
 import {
-  makePlayerHostSyncPayload,
-  makeQueuePayload,
-  makeRoomPlaybackStatePayload,
-} from "../lib/musickit";
-import type { SharePlaySyncInput } from "../shareplay";
-import { SharePlayHost } from "../shareplay/host";
+  MusicKitJamHostPlayerAdapter,
+  MusicKitJamHostSyncSource,
+} from "../lib/jam/adapters/musickit";
+import { jamPlaybackToSharePlayPayload } from "../lib/jam/guest-shareplay";
+import {
+  startJamHostSession,
+  waitForWebSocketOpen,
+  type JamHostSessionHandle,
+} from "../lib/jam/session";
 import { useSharePlayStore } from "./shareplay";
-
-function sharePlayPlaybackNumber(
-  playbackState: PlayerStateSchema["playbackState"],
-): number {
-  return playbackState === "FULL_PLAYBACK_ONLY" ||
-    playbackState === "SHAREPLAY_PARTICIPANT"
-    ? 2
-    : 0;
-}
-
-function sharePlayRepeatNumber(
-  repeatMode: PlayerStateSchema["repeatMode"],
-): number {
-  const m: Record<PlayerStateSchema["repeatMode"], number> = {
-    REPEAT_OFF: 0,
-    REPEAT_ALL: 1,
-    REPEAT_ONE: 2,
-  };
-  return m[repeatMode] ?? 0;
-}
-
-function sharePlayShuffleNumber(
-  shuffleMode: PlayerStateSchema["shuffleMode"],
-): number {
-  return shuffleMode === "SHUFFLE_ON" ? 1 : 0;
-}
-
-/** Minimal MusicKit-like queue items from server `queueEntry` rows (full metadata may require catalog API later). */
-function jamQueueToSharePlayQueue(queue: QueueStateSchema) {
-  return queue.map((e) => ({
-    id: e.itemCatalogId,
-    type: "songs",
-    attributes: {
-      playParams: { id: e.itemCatalogId, kind: "song" },
-    },
-  }));
-}
-
-function jamPlaybackToSharePlayPayload(
-  queue: QueueStateSchema,
-  player: PlayerStateSchema,
-): SharePlaySyncInput {
-  return {
-    queue: jamQueueToSharePlayQueue(queue),
-    index: player.currentPlayingIndex,
-    currentPlayingIndex: player.currentPlayingIndex,
-    elapsedTime: player.elapsedTimeMs,
-    playbackState: sharePlayPlaybackNumber(player.playbackState),
-    repeatMode: sharePlayRepeatNumber(player.repeatMode),
-    shuffleMode: sharePlayShuffleNumber(player.shuffleMode),
-    autoPlay: player.autoPlay,
-  };
-}
-
-function waitForWebSocketOpen(client: CiderSyncSocket): Promise<void> {
-  const { ws } = client;
-  if (ws.readyState === WebSocket.OPEN) return Promise.resolve();
-  if (
-    ws.readyState === WebSocket.CLOSING ||
-    ws.readyState === WebSocket.CLOSED
-  ) {
-    return Promise.reject(new Error("WebSocket is closed"));
-  }
-  return new Promise((resolve, reject) => {
-    const onOpen = () => {
-      cleanup();
-      resolve();
-    };
-    const onError = () => {
-      cleanup();
-      reject(new Error("WebSocket connection failed"));
-    };
-    const cleanup = () => {
-      ws.removeEventListener("open", onOpen);
-      ws.removeEventListener("error", onError);
-    };
-    ws.addEventListener("open", onOpen);
-    ws.addEventListener("error", onError);
-  });
-}
 
 export const useJamStore = defineStore("jam-store", () => {
   const socket = shallowRef<CiderSyncSocket | null>(null);
@@ -107,9 +29,9 @@ export const useJamStore = defineStore("jam-store", () => {
   const currentJam = ref<RoomStateSchema | null>(null);
   const lastQueueState = shallowRef<QueueStateSchema | null>(null);
   const lastPlayerState = shallowRef<PlayerStateSchema | null>(null);
-  const sharePlayHost = shallowRef<SharePlayHost | null>(null);
+  const jamHostSession = shallowRef<JamHostSessionHandle | null>(null);
 
-  const isHost = () => sharePlayHost.value !== null;
+  const isHost = () => jamHostSession.value !== null;
 
   function detachSocket() {
     socket.value?.close();
@@ -123,7 +45,7 @@ export const useJamStore = defineStore("jam-store", () => {
   function flushSharePlayFromServerSnapshots() {
     const q = lastQueueState.value;
     const p = lastPlayerState.value;
-    if (!q || !("queue" in q) || !p) return;
+    if (!Array.isArray(q) || !p) return;
 
     const share = useSharePlayStore();
     if (!share.inhibitor) return;
@@ -195,45 +117,43 @@ export const useJamStore = defineStore("jam-store", () => {
     const client = await getConnectedSocket();
     const mk = MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose;
 
-    const roomCreatePlaybackState = makeRoomPlaybackStatePayload(mk);
-    client.send({
-      event: "room.create",
-      payload: {
-        playbackState: roomCreatePlaybackState,
-      },
-    });
+    const playerAdapter = new MusicKitJamHostPlayerAdapter(mk);
+    const syncSource = new MusicKitJamHostSyncSource(mk);
 
-    const pushQueueFromMusicKit = () => {
-      const s = socket.value;
-      if (!s || s.ws.readyState !== WebSocket.OPEN) return;
-      try {
-        const payload = makeQueuePayload(mk, lastQueueState.value);
-        s.send({ event: "queue.set", payload });
-      } catch (e) {
-        log.warn("host queue.set failed", e);
+    jamHostSession.value = startJamHostSession({
+      socket: client,
+      getLastJamQueue: () => lastQueueState.value,
+      playerAdapter,
+      syncSource,
+    });
+  }
+
+  async function joinJam(roomCode: string) {
+    const code = roomCode.trim().toUpperCase();
+    if (!code) {
+      throw new Error("Enter a session code");
+    }
+
+    if (!identity.value) {
+      await refreshIdentity();
+      if (!identity.value) {
+        throw new Error("Could not load Apple Music profile");
       }
-    };
+    }
 
-    const pushPlaybackFromMusicKit = () => {
-      const s = socket.value;
-      if (!s || s.ws.readyState !== WebSocket.OPEN) return;
+    useSharePlayStore().activate();
 
-      s.send({
-        event: "player.host.sync",
-        payload: {
-          playbackState: makePlayerHostSyncPayload(mk),
-        },
-      });
-    };
-
-    sharePlayHost.value = new SharePlayHost(mk, {
-      onSyncQueue: pushQueueFromMusicKit,
-      onSyncPlayback: pushPlaybackFromMusicKit,
+    const client = await getConnectedSocket();
+    client.send({
+      event: "room.join",
+      payload: { roomCode: code },
     });
-    sharePlayHost.value.inject();
   }
 
   function leaveJam() {
+    jamHostSession.value?.stop();
+    jamHostSession.value = null;
+
     const s = socket.value;
     if (s?.ws.readyState === WebSocket.OPEN && currentJam.value) {
       s.send({ event: "room.leave", payload: {} });
@@ -243,8 +163,6 @@ export const useJamStore = defineStore("jam-store", () => {
     lastQueueState.value = null;
     lastPlayerState.value = null;
     useSharePlayStore().deactivate();
-    sharePlayHost.value?.eject();
-    sharePlayHost.value = null;
   }
 
   async function refreshIdentity() {
@@ -279,6 +197,7 @@ export const useJamStore = defineStore("jam-store", () => {
     lastQueueState,
     lastPlayerState,
     createJam,
+    joinJam,
     leaveJam,
   };
 });

@@ -16,6 +16,15 @@ const createJam = async () => {
     log.error(e);
   }
 };
+
+const roomCode = ref("");
+const joinJam = async () => {
+  try {
+    await jamStore.joinJam(roomCode.value);
+  } catch (e) {
+    log.error(e);
+  }
+};
 </script>
 
 <template>
@@ -32,9 +41,9 @@ const createJam = async () => {
       </button>
 
       <div class="ciderjams-input-container">
-        <input type="text" class="c-input ciderjams-input" placeholder="Enter session code" />
+        <input type="text" class="c-input ciderjams-input" placeholder="Enter session code" v-model="roomCode" />
 
-        <button class="ciderjams-join-button">
+        <button class="ciderjams-join-button" @click="joinJam">
           <CComponent
             name="NIcon"
             :componentProps="{
