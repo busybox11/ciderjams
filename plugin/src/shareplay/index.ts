@@ -63,10 +63,9 @@ export class SharePlayInhibitor {
       const originalHandler = playActivity.handleEvent;
       playActivity.handleEvent = function (eventName: string, data: unknown) {
         try {
-          log.debug("handleEvent", eventName, data);
+          // log.debug("handleEvent", eventName, data);
           return originalHandler.apply(this, [eventName, data]);
         } catch {
-          log.warn(`analytics suppressed for event: ${eventName}`);
           return;
         }
       };

@@ -141,6 +141,7 @@ export const useJamStore = defineStore("jam-store", () => {
       );
       return;
     }
+    log.debug("onSocketMessage", parsed.data);
 
     const msg = parsed.data;
     if ("type" in msg) {
@@ -152,13 +153,13 @@ export const useJamStore = defineStore("jam-store", () => {
         applyRoomState(msg.payload as RoomStateSchema);
         break;
       case "queue.state":
-        if (isHost()) return;
         lastQueueState.value = msg.payload as QueueStateSchema;
+        if (isHost()) return;
         flushSharePlayFromServerSnapshots();
         break;
       case "player.state":
-        if (isHost()) return;
         lastPlayerState.value = msg.payload as PlayerStateSchema;
+        if (isHost()) return;
         flushSharePlayFromServerSnapshots();
         break;
       default:
