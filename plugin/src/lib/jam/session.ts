@@ -1,4 +1,8 @@
-import type { PlayerHostSyncPayload, QueueStateSchema } from "@ciderjams/proto";
+import type {
+  PlayerHostSyncPayload,
+  QueueSetPayload,
+  QueueStateSchema,
+} from "@ciderjams/proto";
 
 import type { SharePlayHostAdapterHooks } from "../../shareplay/adapter";
 import type { CiderSyncSocket } from "../api";
@@ -41,9 +45,34 @@ export function waitForWebSocketOpen(client: CiderSyncSocket): Promise<void> {
   });
 }
 
+type JamHostSharedSlices = {
+  queue: QueueStateSchema | null;
+};
+
+function isSameQueueCatalogOrder(
+  last: { itemCatalogId: string }[],
+  next: { itemCatalogId: string }[],
+): boolean {
+  return (
+    last.length === next.length &&
+    last.every((entry, i) => entry.itemCatalogId === next[i].itemCatalogId)
+  );
+}
+
 const PLAYBACK_STATE_GUARDS: ([(state: PlayerHostSyncPayload["playbackState"]) => boolean, string])[] = [
   [(state) => (!state.isPlaying || state.currentPlayingIndex !== -1),
     "isPlaying but currentPlayingIndex cannot be -1",
+  ],
+];
+
+const QUEUE_SET_GUARDS: ([(
+  payload: QueueSetPayload,
+  slices: JamHostSharedSlices,
+) => boolean, string])[] = [
+  [
+    (payload, { queue }) =>
+      !queue || !isSameQueueCatalogOrder(queue, payload),
+    "queue catalog order unchanged",
   ],
 ];
 
@@ -52,6 +81,22 @@ function playbackStateGuard(state: PlayerHostSyncPayload["playbackState"]): bool
     if (!guard(state)) {
       log.warn("playback state guard failed", message);
       log.debug("playback state", state);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function queueSetGuard(
+  payload: QueueSetPayload,
+  getSlices: () => JamHostSharedSlices,
+): boolean {
+  const slices = getSlices();
+  for (const [guard, message] of QUEUE_SET_GUARDS) {
+    if (!guard(payload, slices)) {
+      log.warn("queue set guard failed", message);
+      log.debug("queue set payload", payload, "last queue", slices.queue);
       return false;
     }
   }
@@ -68,11 +113,16 @@ export function startJamHostSession(args: {
 }): JamHostSessionHandle {
   const { socket, getLastJamQueue, playerAdapter, syncSource } = args;
 
+  const getSlices = (): JamHostSharedSlices => ({
+    queue: getLastJamQueue(),
+  });
+
   const pushQueueFromAdapter = () => {
     const s = socket;
     if (!s || s.ws.readyState !== WebSocket.OPEN) return;
     try {
       const payload = playerAdapter.getQueueSetPayload(getLastJamQueue());
+      if (!queueSetGuard(payload, getSlices)) return;
       s.send({ event: "queue.set", payload });
     } catch (e) {
       log.warn("host queue.set failed", e);
