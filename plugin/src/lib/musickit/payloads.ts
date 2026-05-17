@@ -59,7 +59,7 @@ export function getItemCatalogId(item: MusicKit.MediaItem): string {
   // ex. AMItemCatalogId = z.string().regex(/^[0-9]+$/);
   //     AMItemLibraryId = z.string().regex(/^i\.[A-Za-z0-9]+$/); (maybe)
 
-  log.debug("item", item);
+  // log.debug("item", item);
   return item.attributes?.playParams?.catalogId ?? item.id;
 }
 
