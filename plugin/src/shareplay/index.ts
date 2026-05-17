@@ -186,6 +186,111 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     );
   }
 
+  private getQueueCatalogIds(queue: SharePlaySyncInput["queue"]): string[] {
+    return queue.map(
+      (item) => item.attributes?.playParams?.catalogId ?? item.id,
+    );
+  }
+
+  private dedupeServerQueue(
+    queue: SharePlaySyncInput["queue"],
+  ): SharePlaySyncInput["queue"] {
+    return queue
+      .map((item) => ({
+        ...item,
+        attributes: {
+          ...item.attributes,
+          playParams: {
+            ...item.attributes.playParams,
+            catalogId: item.id,
+            reporting: true,
+            reportingId: item.id,
+          },
+        },
+      }))
+      .filter(
+        (item, index, self) =>
+          self.findIndex((t) => t.id === item.id) === index,
+      );
+  }
+
+  private async applyServerSyncQueue(
+    music: MusicKitWithCiderSharePlay,
+    dedupedQueue: SharePlaySyncInput["queue"],
+    playingIndex: number,
+  ): Promise<{
+    queueChanged: boolean;
+    instantiatedQueue: MusicKit.MediaItem[];
+    didApplyPlaybackPosition: boolean;
+  }> {
+    const catalogIds = this.getQueueCatalogIds(dedupedQueue);
+    if (
+      this.lastServerQueueIds &&
+      this.lastServerQueueIds.length === catalogIds.length &&
+      this.lastServerQueueIds.every((id, i) => id === catalogIds[i])
+    ) {
+      log.debug("queue catalogIds unchanged, skipping setQueue");
+      return {
+        queueChanged: false,
+        instantiatedQueue: music.queue._queueItems.map((item) => item.item),
+        didApplyPlaybackPosition: false,
+      };
+    }
+
+    this.lastServerQueueIds = catalogIds;
+
+    log.debug(
+      "preloading room queue MediaItem instances with metadata",
+      dedupedQueue,
+    );
+    const instantiatedQueue = await this.instantiateQueue(music, dedupedQueue);
+
+    log.assert(
+      instantiatedQueue.every((item) => item.attributes.playParams.catalogId),
+      "preloaded tracks have catalogId",
+      instantiatedQueue,
+    );
+    log.assert(
+      instantiatedQueue.every((item) => item.attributes.name),
+      "preloaded tracks have name",
+      instantiatedQueue,
+    );
+    log.debug("preloaded queue MediaItem instances", instantiatedQueue);
+
+    let didApplyPlaybackPosition = false;
+    if (music.nowPlayingItemIndex !== playingIndex) {
+      log.assert(
+        false,
+        "queue changed, stopping",
+        music.nowPlayingItemIndex,
+        playingIndex,
+      );
+      await music.stop();
+      didApplyPlaybackPosition = true;
+    }
+
+    await music.setQueue({
+      items: instantiatedQueue,
+    });
+
+    if (music.nowPlayingItemIndex !== playingIndex) {
+      log.assert(
+        false,
+        "queue changed, changing to index",
+        music.nowPlayingItemIndex,
+        playingIndex,
+      );
+      await music.changeToMediaAtIndex(playingIndex);
+      didApplyPlaybackPosition = true;
+    }
+
+    return {
+      queueChanged: true,
+      instantiatedQueue,
+      didApplyPlaybackPosition,
+    };
+  }
+
   private async instantiateQueue(
     music: MusicKitWithCiderSharePlay,
     queue: SharePlaySyncInput["queue"],
@@ -248,25 +353,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
 
     music.autoplayEnabled = false;
 
-    // TODO: remove this
-    // temp dedupe queue because cider sucks
-    const dedupedQueue = serverData.queue
-      .map((item) => ({
-        ...item,
-        attributes: {
-          ...item.attributes,
-          playParams: {
-            ...item.attributes.playParams,
-            catalogId: item.id,
-            reporting: true,
-            reportingId: item.id,
-          },
-        },
-      }))
-      .filter(
-        (item, index, self) =>
-          self.findIndex((t) => t.id === item.id) === index,
-      );
+    const dedupedQueue = this.dedupeServerQueue(serverData.queue);
 
     const serverPlayingItemId =
       serverData.queue[serverData.index ?? serverData.currentPlayingIndex ?? 0]
@@ -275,30 +362,16 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       (item) => item.id === serverPlayingItemId,
     );
 
-    // const instantiatedQueue = dedupedQueue.map(
-    //   (item) => new MusicKit.MediaItem(item as never),
-    // );
-
-    log.debug("preloading room queue MediaItem instances with metadata", dedupedQueue);
-    const instantiatedQueue = await this.instantiateQueue(music, dedupedQueue);
-    
-    // maybe shared validation utility would be useful here? type guards?
-    log.assert(instantiatedQueue.every((item) => item.attributes.playParams.catalogId), "preloaded tracks have catalogId", instantiatedQueue);
-    log.assert(instantiatedQueue.every((item) => item.attributes.name), "preloaded tracks have name", instantiatedQueue);
-    log.debug("preloaded queue MediaItem instances", instantiatedQueue);
+    const {
+      queueChanged,
+      instantiatedQueue,
+      didApplyPlaybackPosition: queueAppliedPosition,
+    } = await this.applyServerSyncQueue(music, dedupedQueue, playingIndex);
 
     const seekSeconds = (serverData.elapsedTime || 0) / 1000;
-
     if (music._sharePlay) {
       music._sharePlay.lastKnownElapsedTime = seekSeconds;
     }
-
-    const queueIds = dedupedQueue.map((item) => item.id);
-    const hasQueueChanged =
-      !this.lastServerQueueIds ||
-      this.lastServerQueueIds.length !== queueIds.length ||
-      this.lastServerQueueIds.some((id, index) => id !== queueIds[index]);
-    this.lastServerQueueIds = queueIds;
 
     const resyncPlayback = async () => {
       await music.changeToMediaAtIndex(playingIndex);
@@ -307,30 +380,8 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       }
     };
 
-    let didApplyPlaybackPosition = false;
-    if (hasQueueChanged) {
-      // don't stop if the queue is simply re-ordered, only if it's different
-      if (music.nowPlayingItemIndex !== playingIndex) {
-        log.assert(false, "queue changed, stopping", music.nowPlayingItemIndex, playingIndex);
-        await music.stop();
-        didApplyPlaybackPosition = true;
-      }
-
-      await music.setQueue({
-        items: instantiatedQueue,
-      });
-
-      // internally calls PlaybackController.changeToMediaAtIndex
-      // which triggers MediaItemPlayback.startMediaItemPlayback
-      // Ignores pause, immediately plays the item
-      // TODO: don't do this
-
-      if (music.nowPlayingItemIndex !== playingIndex) {
-        log.assert(false, "queue changed, changing to index", music.nowPlayingItemIndex, playingIndex);
-        await music.changeToMediaAtIndex(playingIndex);
-        didApplyPlaybackPosition = true;
-      }
-    } else if (music.nowPlayingItemIndex !== playingIndex) {
+    let didApplyPlaybackPosition = queueAppliedPosition;
+    if (!queueChanged && music.nowPlayingItemIndex !== playingIndex) {
       await resyncPlayback();
       didApplyPlaybackPosition = true;
     } else if (
@@ -358,7 +409,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       } catch (e) {
         log.error("error playing", e);
       }
-    } else if (!hasQueueChanged && typeof music.pause === "function") {
+    } else if (!queueChanged && typeof music.pause === "function") {
       await music.pause();
     }
 
