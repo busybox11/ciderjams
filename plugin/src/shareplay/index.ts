@@ -354,7 +354,10 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     music.autoplayEnabled = false;
 
     const dedupedQueue = this.dedupeServerQueue(serverData.queue);
-    if (dedupedQueue.length === 0) {
+    // maybe causes internal musickit state mismatch on resume
+    // probably due to stopping the player if not already initialized with tracks?
+    // will be caught by playback state guard
+    if (dedupedQueue.length === 0 && (music.isPlaying || music.nowPlayingItemIndex !== -1)) {
       // empty jam state, properly clear musickit
       log.debug("jam is empty, stopping local player");
       music.clearQueue();
