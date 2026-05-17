@@ -6,6 +6,7 @@ import type {
 import { mockSharePlayData } from "./mock";
 import {
   getMusicKitAppDispatcher,
+  patchMusicKitQueue,
   subscribeDispatcher,
   type MusicKitWithCiderSharePlay,
 } from "./musickit-bridge";
@@ -257,29 +258,48 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     );
     log.debug("preloaded queue MediaItem instances", instantiatedQueue);
 
-    let didApplyPlaybackPosition = false;
-    if (music.nowPlayingItemIndex !== playingIndex) {
-      log.assert(
-        false,
-        "queue changed, stopping",
-        music.nowPlayingItemIndex,
+    const targetPlayingId = instantiatedQueue[playingIndex]?.id;
+    const currentPlayingId = music.nowPlayingItem?.id;
+    const canPatchInPlace =
+      music.queue.isInitiated &&
+      music.queue.length > 0 &&
+      (music.nowPlayingItemIndex ?? -1) >= 0;
+
+    if (canPatchInPlace) {
+      log.debug("patching queue in place (updateItems)", { playingIndex });
+      const { didMovePosition } = patchMusicKitQueue(
+        music.queue,
+        instantiatedQueue,
         playingIndex,
       );
-      await music.stop();
-      didApplyPlaybackPosition = true;
+      let didApplyPlaybackPosition = didMovePosition;
+      if (
+        targetPlayingId &&
+        currentPlayingId !== targetPlayingId &&
+        playingIndex >= 0
+      ) {
+        log.debug("server now-playing changed, changeToMediaAtIndex", {
+          from: currentPlayingId,
+          to: targetPlayingId,
+          playingIndex,
+        });
+        await music.changeToMediaAtIndex(playingIndex);
+        didApplyPlaybackPosition = true;
+      }
+      return {
+        queueChanged: true,
+        instantiatedQueue,
+        didApplyPlaybackPosition,
+      };
     }
 
+    log.debug("queue not initiated, using setQueue");
     await music.setQueue({
       items: instantiatedQueue,
     });
 
-    if (music.nowPlayingItemIndex !== playingIndex) {
-      log.assert(
-        false,
-        "queue changed, changing to index",
-        music.nowPlayingItemIndex,
-        playingIndex,
-      );
+    let didApplyPlaybackPosition = false;
+    if (music.nowPlayingItemIndex !== playingIndex && playingIndex >= 0) {
       await music.changeToMediaAtIndex(playingIndex);
       didApplyPlaybackPosition = true;
     }
