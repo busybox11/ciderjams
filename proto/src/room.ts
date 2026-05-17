@@ -1,8 +1,10 @@
 import * as z from "zod";
 
 /* MusicKit like shapes */
-export const CatalogItemId = z.string();
-export const LibraryItemId = z.string();
+export const CatalogItemId = z.string().regex(/^[0-9]+$/).describe("Apple Music catalog item ID");
+export type CatalogItemId = z.infer<typeof CatalogItemId>;
+export const LibraryItemId = z.string().regex(/^i\.[A-Za-z0-9]+$/).describe("Apple Music library item ID. Should not be used in rooms");
+export type LibraryItemId = z.infer<typeof LibraryItemId>;
 
 export const playbackState = z.enum([
   "PREVIEW_ONLY",

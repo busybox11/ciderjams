@@ -3,7 +3,10 @@ export interface SharePlaySyncQueueRow {
   id: string;
   type?: string;
   attributes: Record<string, unknown> & {
-    playParams?: Record<string, unknown>;
+    playParams?: Record<string, unknown> & {
+      catalogId?: string;
+      reportingId?: string;
+    };
   };
 }
 
