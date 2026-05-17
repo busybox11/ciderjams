@@ -221,9 +221,23 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       (item) => item.id === serverPlayingItemId,
     );
 
-    const instantiatedQueue = dedupedQueue.map(
-      (item) => new MusicKit.MediaItem(item as never),
-    );
+    // const instantiatedQueue = dedupedQueue.map(
+    //   (item) => new MusicKit.MediaItem(item as never),
+    // );
+
+    log.debug("preloading room queue MediaItem instances with metadata", dedupedQueue);
+    
+    // uses undocumented internal MusicKitInstance.loadItems method
+    // preload instanciated items with full metadata into the queue
+    // prevents cider from showing empty tracks, also causing unexpected internal broken states
+    const instantiatedQueue = await music.loadItems({
+      songs: dedupedQueue.map((item) => item.attributes.playParams.catalogId),
+    });
+    
+    // maybe shared validation utility would be useful here? type guards?
+    log.assert(instantiatedQueue.every((item) => item.attributes.playParams.catalogId), "preloaded tracks have catalogId", instantiatedQueue);
+    log.assert(instantiatedQueue.every((item) => item.attributes.name), "preloaded tracks have name", instantiatedQueue);
+    log.debug("preloaded queue MediaItem instances", instantiatedQueue);
 
     const seekSeconds = (serverData.elapsedTime || 0) / 1000;
 
