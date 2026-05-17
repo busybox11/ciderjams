@@ -81,7 +81,7 @@ export function makeQueuePayload(
 ): RoomCreatePayload["playbackState"]["queue"] | QueueSetPayload {
   if (isRoomCreate) {
     const queueItems = music.queue._queueItems.map((item) => ({
-      itemCatalogId: item.item.id,
+      itemCatalogId: getItemCatalogId(item.item),
     })) satisfies SchemaInput<typeof roomCreateQueueSchema>;
 
     log.debug("queue items", queueItems);
