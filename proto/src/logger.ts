@@ -4,6 +4,7 @@ export interface Logger {
   warn: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
   debug: (...args: unknown[]) => void;
+  assert: (condition: boolean, message: string, ...args: unknown[]) => void;
 }
 
 // Colors for prefix and unique scopes
@@ -62,5 +63,10 @@ export function createLogger(project: string, scope?: string): Logger {
     warn: (...args) => console.warn(...formatArgs(args)),
     error: (...args) => console.error(...formatArgs(args)),
     debug: (...args) => console.debug(...formatArgs(args)),
+    assert: (condition: boolean, message: string, ...args: unknown[]) => {
+      if (!condition) {
+        console.error(...formatArgs(["Assertion failed: " + message, ...args]));
+      }
+    },
   };
 }
