@@ -78,12 +78,17 @@ export const useJamStore = defineStore("jam-store", () => {
         break;
       case "queue.state":
         lastQueueState.value = msg.payload as QueueStateSchema;
-        if (isHost()) return;
+        
+        // TODO: host should also flush shareplay from server snapshots
+        // if (isHost()) return;
         flushSharePlayFromServerSnapshots();
         break;
       case "player.state":
         lastPlayerState.value = msg.payload as PlayerStateSchema;
-        if (isHost()) return;
+        
+        // TODO: host should also flush shareplay from server snapshots
+        // scared this could cause some race conditions or infinite loops, to investigate
+        // if (isHost()) return;
         flushSharePlayFromServerSnapshots();
         break;
       default:

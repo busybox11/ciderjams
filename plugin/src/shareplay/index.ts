@@ -190,6 +190,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     music: MusicKitWithCiderSharePlay,
     serverData: SharePlaySyncInput,
   ) {
+    // TODO: big overhaul, proper diffing
     log.debug("applyServerSync", serverData);
 
     const playbackState = serverData.playbackState ?? serverData.state ?? 0;
@@ -261,7 +262,12 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
 
     let didApplyPlaybackPosition = false;
     if (hasQueueChanged) {
-      await music.stop();
+      // don't stop if the queue is simply re-ordered, only if it's different
+      if (music.nowPlayingItemIndex !== playingIndex) {
+        log.assert(false, "queue changed, stopping", music.nowPlayingItemIndex, playingIndex);
+        await music.stop();
+        didApplyPlaybackPosition = true;
+      }
 
       await music.setQueue({
         items: instantiatedQueue,
@@ -271,8 +277,12 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       // which triggers MediaItemPlayback.startMediaItemPlayback
       // Ignores pause, immediately plays the item
       // TODO: don't do this
-      await music.changeToMediaAtIndex(playingIndex);
-      didApplyPlaybackPosition = true;
+
+      if (music.nowPlayingItemIndex !== playingIndex) {
+        log.assert(false, "queue changed, changing to index", music.nowPlayingItemIndex, playingIndex);
+        await music.changeToMediaAtIndex(playingIndex);
+        didApplyPlaybackPosition = true;
+      }
     } else if (music.nowPlayingItemIndex !== playingIndex) {
       await resyncPlayback();
       didApplyPlaybackPosition = true;
