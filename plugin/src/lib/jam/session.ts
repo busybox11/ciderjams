@@ -1,9 +1,9 @@
-import type { QueueStateSchema } from "@ciderjams/proto";
+import type { PlayerHostSyncPayload, QueueStateSchema } from "@ciderjams/proto";
 
+import type { SharePlayHostAdapterHooks } from "../../shareplay/adapter";
 import type { CiderSyncSocket } from "../api";
 import { log } from "../logger";
 import type { JamHostPlayerAdapter } from "./player-adapter";
-import type { SharePlayHostAdapterHooks } from "../../shareplay/adapter";
 
 export interface JamHostSyncSource {
   start(hooks: SharePlayHostAdapterHooks): void;
@@ -41,6 +41,27 @@ export function waitForWebSocketOpen(client: CiderSyncSocket): Promise<void> {
   });
 }
 
+const PLAYBACK_STATE_GUARDS: ([(state: PlayerHostSyncPayload["playbackState"]) => boolean, string])[] = [
+  [(state) => (state.isPlaying && state.currentPlayingIndex < 0),
+  "isPlaying but nowPlayingItemIndex is -1",
+]
+];
+
+/**
+ * Prevents sending playback state updates that are invalid in a jam
+ * - isPlaying but nowPlayingItemIndex is -1
+ */
+function playbackStateGuard(state: PlayerHostSyncPayload["playbackState"]): boolean {
+  for (const [guard, message] of PLAYBACK_STATE_GUARDS) {
+    if (!guard(state)) {
+      log.warn("playback state guard failed", message);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /** Wire host push handlers to a sync source and send `room.create`. */
 export function startJamHostSession(args: {
   socket: CiderSyncSocket;
@@ -64,10 +85,14 @@ export function startJamHostSession(args: {
   const pushPlaybackFromAdapter = () => {
     const s = socket;
     if (!s || s.ws.readyState !== WebSocket.OPEN) return;
+
+    const state = playerAdapter.getHostSyncPlaybackState();
+    if (!playbackStateGuard(state)) return;
+
     s.send({
       event: "player.host.sync",
       payload: {
-        playbackState: playerAdapter.getHostSyncPlaybackState(),
+        playbackState: state,
       },
     });
   };

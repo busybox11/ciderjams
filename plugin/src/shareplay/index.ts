@@ -381,7 +381,9 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     }
 
     const resyncPlayback = async () => {
-      await music.changeToMediaAtIndex(playingIndex);
+      if (music.nowPlayingItemIndex !== playingIndex) {
+        await music.changeToMediaAtIndex(playingIndex);
+      }
       if (serverData.elapsedTime && serverData.elapsedTime > 0) {
         await music.seekToTime(seekSeconds);
       }
