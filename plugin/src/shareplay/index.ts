@@ -406,7 +406,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
 
     if (playbackState === 2) {
       try {
-        await music.play();
+        if (!music.isPlaying) await music.play();
         if (
           didApplyPlaybackPosition &&
           serverData.elapsedTime &&
