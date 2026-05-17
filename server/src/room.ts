@@ -17,12 +17,27 @@ import {
 } from "@ciderjams/proto";
 import { randomBytes } from "node:crypto";
 
+import { createLogger } from "@ciderjams/proto";
+
+const log = createLogger("server", "room");
+
 function nowMs(): number {
   return Date.now();
 }
 
 function newQueueEntryId(): string {
   return randomBytes(12).toString("hex");
+}
+
+function minRoomStateLog(state: BasePlaybackState): void {
+  const playingItemId = state.queue[state.currentPlayingIndex]?.itemCatalogId;
+  log.debug("room state", [
+    state.isPlaying ? "playing" : "paused",
+    state.currentPlayingIndex,
+    playingItemId,
+    `${state.elapsedTimeMs}ms`,
+    state.playbackState
+  ]);
 }
 
 export class Room {
@@ -108,6 +123,8 @@ export class Room {
         updatedAtMs: nowMs(),
       },
     });
+
+    minRoomStateLog(this.#meta.playbackState);
   }
 
   join(user: roomParticipant): void {

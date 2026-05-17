@@ -462,9 +462,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     await refocusIfWrongItem("post-publish-sync");
     setTimeout(() => void refocusIfWrongItem("post-publish+50ms"), 50);
 
-    log.debug("played");
-    log.debug("elapsedTime", serverData.elapsedTime);
-    log.debug("currentPlaybackTime", music.currentPlaybackTime);
+    log.debug("server data", serverData);
   }
 
   public triggerMockSync() {
