@@ -354,6 +354,13 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     music.autoplayEnabled = false;
 
     const dedupedQueue = this.dedupeServerQueue(serverData.queue);
+    if (dedupedQueue.length === 0) {
+      // empty jam state, properly clear musickit
+      log.debug("jam is empty, stopping local player");
+      music.clearQueue();
+      music.stop();
+      return;
+    }
 
     const serverPlayingItemId =
       serverData.queue[serverData.index ?? serverData.currentPlayingIndex ?? 0]
