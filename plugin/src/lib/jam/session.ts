@@ -42,19 +42,16 @@ export function waitForWebSocketOpen(client: CiderSyncSocket): Promise<void> {
 }
 
 const PLAYBACK_STATE_GUARDS: ([(state: PlayerHostSyncPayload["playbackState"]) => boolean, string])[] = [
-  [(state) => (state.isPlaying && state.currentPlayingIndex < 0),
-  "isPlaying but nowPlayingItemIndex is -1",
-]
+  [(state) => (!state.isPlaying || state.currentPlayingIndex !== -1),
+    "isPlaying but currentPlayingIndex cannot be -1",
+  ],
 ];
 
-/**
- * Prevents sending playback state updates that are invalid in a jam
- * - isPlaying but nowPlayingItemIndex is -1
- */
 function playbackStateGuard(state: PlayerHostSyncPayload["playbackState"]): boolean {
   for (const [guard, message] of PLAYBACK_STATE_GUARDS) {
     if (!guard(state)) {
       log.warn("playback state guard failed", message);
+      log.debug("playback state", state);
       return false;
     }
   }
