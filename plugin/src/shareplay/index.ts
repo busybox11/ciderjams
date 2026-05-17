@@ -193,6 +193,17 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     );
   }
 
+  private isSameQueueOrder(a: string[], b: string[]): boolean {
+    return a.length === b.length && a.every((id, i) => id === b[i]);
+  }
+
+  private isSameQueueItems(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((id, i) => id === sortedB[i]);
+  }
+
   private dedupeServerQueue(
     queue: SharePlaySyncInput["queue"],
   ): SharePlaySyncInput["queue"] {
@@ -227,10 +238,9 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     const catalogIds = this.getQueueCatalogIds(dedupedQueue);
     if (
       this.lastServerQueueIds &&
-      this.lastServerQueueIds.length === catalogIds.length &&
-      this.lastServerQueueIds.every((id, i) => id === catalogIds[i])
+      this.isSameQueueOrder(this.lastServerQueueIds, catalogIds)
     ) {
-      log.debug("queue catalogIds unchanged, skipping setQueue");
+      log.debug("queue order unchanged, skipping queue sync");
       return {
         queueChanged: false,
         instantiatedQueue: music.queue._queueItems.map((item) => item.item),
@@ -238,13 +248,24 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       };
     }
 
+    const reorderOnly =
+      !!this.lastServerQueueIds &&
+      this.isSameQueueItems(this.lastServerQueueIds, catalogIds);
+
     this.lastServerQueueIds = catalogIds;
 
-    log.debug(
-      "preloading room queue MediaItem instances with metadata",
-      dedupedQueue,
-    );
-    const instantiatedQueue = await this.instantiateQueue(music, dedupedQueue);
+    const instantiatedQueue = reorderOnly
+      ? this.reorderInstantiatedQueue(music, dedupedQueue)
+      : await this.instantiateQueue(music, dedupedQueue);
+
+    if (reorderOnly) {
+      log.debug("queue reorder only", instantiatedQueue.map((item) => item.id));
+    } else {
+      log.debug(
+        "preloading room queue MediaItem instances with metadata",
+        dedupedQueue,
+      );
+    }
 
     log.assert(
       instantiatedQueue.every((item) => item.attributes.playParams.catalogId),
@@ -309,6 +330,27 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       instantiatedQueue,
       didApplyPlaybackPosition,
     };
+  }
+
+  private reorderInstantiatedQueue(
+    music: MusicKitWithCiderSharePlay,
+    queue: SharePlaySyncInput["queue"],
+  ): MusicKit.MediaItem[] {
+    const byCatalogId = new Map<string, MusicKit.MediaItem>();
+    for (const { item } of music.queue._queueItems) {
+      const catalogId =
+        item.attributes?.playParams?.catalogId ?? String(item.id);
+      byCatalogId.set(catalogId, item);
+    }
+
+    return queue.map((row) => {
+      const catalogId = row.attributes?.playParams?.catalogId ?? row.id;
+      const item = byCatalogId.get(catalogId);
+      if (!item) {
+        throw new Error(`queue item not found for reorder: ${catalogId}`);
+      }
+      return item;
+    });
   }
 
   private async instantiateQueue(

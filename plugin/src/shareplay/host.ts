@@ -1,5 +1,6 @@
-import { getMusicKitAppDispatcher } from "./musickit-bridge";
+import { INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS, INTERNAL_PLUGIN_SUBSCRIBE_EVENTS, internalPluginEvents } from "../lib/events";
 import type { ISharePlayHostAdapter, SharePlayHostAdapterHooks } from "./adapter";
+import { getMusicKitAppDispatcher } from "./musickit-bridge";
 
 import { createLogger } from "@ciderjams/proto";
 
@@ -7,6 +8,7 @@ const log = createLogger("plugin", "shareplay/host");
 
 export const QUEUE_SYNC_EVENTS: string[] = [
   "queueItemsDidChange",
+  "queuePositionDidChange"
   // "queueModified",
 ];
 
@@ -44,6 +46,7 @@ export type SharePlayHostOptions = {
 
 export class SharePlayHost implements ISharePlayHostAdapter {
   private readonly events = new Map<string, (...args: unknown[]) => void>();
+  private readonly internalPluginEvents = new Map<string, (...args: unknown[]) => void>();
   private lastPlaybackSync = 0;
   private playbackSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private hooks: SharePlayHostAdapterHooks = {};
@@ -91,6 +94,21 @@ export class SharePlayHost implements ISharePlayHostAdapter {
       this.events.set(event, handler);
       dispatcher.subscribe(event, handler);
     }
+
+    // ew ugly ew but it works for now so dont criticise me or i will cry
+    // thank u
+    for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
+      const handler = (..._args: unknown[]) => {
+        log.debug("handleInternalPluginEvent", event, ..._args);
+        
+        if (INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS.includes(event)) {
+          log.debug("triggerQueueSync");
+          this.hooks.onSyncQueue?.() ?? this.options.onSyncQueue?.();
+        }
+      };
+      this.internalPluginEvents.set(event, handler);
+      internalPluginEvents.addEventListener(event, handler);
+    }
   }
 
   public eject() {
@@ -101,5 +119,10 @@ export class SharePlayHost implements ISharePlayHostAdapter {
       dispatcher.unsubscribe(event, handler);
     });
     this.events.clear();
+
+    for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
+      internalPluginEvents.removeEventListener(event, this.internalPluginEvents.get(event) ?? null);
+      this.internalPluginEvents.delete(event);
+    }
   }
 }
