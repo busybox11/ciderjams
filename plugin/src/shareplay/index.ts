@@ -1,4 +1,4 @@
-import { createLogger } from "@ciderjams/proto";
+import { CatalogItemId, createLogger } from "@ciderjams/proto";
 import type {
   ISharePlayGuestAdapter,
   SharePlayGuestAdapterHooks,
@@ -186,17 +186,70 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     );
   }
 
+  private async instantiateQueue(
+    music: MusicKitWithCiderSharePlay,
+    queue: SharePlaySyncInput["queue"],
+  ): Promise<MusicKit.MediaItem[]> {
+    const existingQueue = music.queue._queueItems.map((item) => item.item);
+
+    // create map of instantiated items by catalogId
+    let instanciatedItemsMap = new Map<string, MusicKit.MediaItem>();
+    let newItems: CatalogItemId[] = [];
+
+    for (const item of queue) {
+      const existingItem = existingQueue.find((existing) => existing.id === item.attributes?.playParams?.catalogId);
+      if (existingItem) {
+        instanciatedItemsMap.set(item.attributes?.playParams?.catalogId ?? item.id, existingItem);
+      } else {
+        newItems.push(item.attributes?.playParams?.catalogId ?? item.id);
+      }
+    }
+    log.debug("reusing existing items", existingQueue.map((item) => item.id));
+
+    // uses undocumented internal MusicKitInstance.loadItems method
+    // preload instanciated items with full metadata into the queue
+    // prevents cider from showing empty tracks, also causing unexpected internal broken states
+    log.debug("preloading new items", newItems);
+    const instantiatedNewItems = await music.loadItems({
+      songs: newItems,
+    });
+    log.debug("instantiated new items", instantiatedNewItems.map((item) => item.id));
+
+    // merge instantiated new items with existing queue
+    let instantiatedQueue: MusicKit.MediaItem[] = [];
+    for (const newItem of instantiatedNewItems) {
+      instanciatedItemsMap.set(newItem.id, newItem);
+    }
+
+    for (const newQueueItem of queue) {
+      const qId = newQueueItem.attributes?.playParams?.catalogId ?? newQueueItem.id;
+
+      const instantiatedItem = instanciatedItemsMap.get(qId);
+      if (!instantiatedItem) throw new Error(`instantiated item not found for queue item ${qId}`);
+      
+      instantiatedQueue.push(instantiatedItem);
+    }
+  
+    return instantiatedQueue;
+  }
+
   private async applyServerSync(
     music: MusicKitWithCiderSharePlay,
     serverData: SharePlaySyncInput,
   ) {
     // TODO: big overhaul, proper diffing
+    // this can be called multiple times in a row
+    // as a result we sometimes hit a race condition where we fetch/manipulate state
+    // a lot of times in parallel
+    // should be deduped / batched / debounced
     log.debug("applyServerSync", serverData);
 
     const playbackState = serverData.playbackState ?? serverData.state ?? 0;
 
     music.autoplayEnabled = false;
 
+    // TODO: remove this
+    // temp dedupe queue because cider sucks
     const dedupedQueue = serverData.queue
       .map((item) => ({
         ...item,
@@ -227,13 +280,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     // );
 
     log.debug("preloading room queue MediaItem instances with metadata", dedupedQueue);
-    
-    // uses undocumented internal MusicKitInstance.loadItems method
-    // preload instanciated items with full metadata into the queue
-    // prevents cider from showing empty tracks, also causing unexpected internal broken states
-    const instantiatedQueue = await music.loadItems({
-      songs: dedupedQueue.map((item) => item.attributes.playParams.catalogId),
-    });
+    const instantiatedQueue = await this.instantiateQueue(music, dedupedQueue);
     
     // maybe shared validation utility would be useful here? type guards?
     log.assert(instantiatedQueue.every((item) => item.attributes.playParams.catalogId), "preloaded tracks have catalogId", instantiatedQueue);
