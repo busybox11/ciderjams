@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getItemCatalogId } from "../lib/musickit/payloads";
 import { useJamStore } from "../stores/main";
 
 const props = defineProps<{
@@ -12,7 +13,7 @@ const currentQueueState = computed(() => jamStore.lastQueueState);
 const currentJam = computed(() => jamStore.currentJam);
 const jamTrack = computed(() => {
   if (!currentQueueState.value) return null;
-  const ownerId = currentQueueState.value.find((q) => q.itemCatalogId === props.item.id)?.ownerUserId;
+  const ownerId = currentQueueState.value.find((q) => q.itemCatalogId === getItemCatalogId(props.item))?.ownerUserId;
   if (!ownerId) return null;
   return currentJam.value?.participants.find((p) => p.userId === ownerId);
 });
