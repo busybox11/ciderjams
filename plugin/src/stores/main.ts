@@ -10,7 +10,6 @@ import type {
 } from "@ciderjams/proto";
 import { outboundWsMessageSchema } from "@ciderjams/proto";
 import { ciderSyncSocket, type CiderSyncSocket } from "../lib/api";
-import { log } from "../lib/logger";
 import {
   MusicKitJamHostPlayerAdapter,
   MusicKitJamHostSyncSource,
@@ -21,6 +20,7 @@ import {
   waitForWebSocketOpen,
   type JamHostSessionHandle,
 } from "../lib/jam/session";
+import { log } from "../lib/logger";
 import { SharePlayGuestActions } from "../shareplay/guest-actions";
 import { useSharePlayStore } from "./shareplay";
 
@@ -80,7 +80,7 @@ export const useJamStore = defineStore("jam-store", () => {
         lastQueueState.value = msg.payload as QueueStateSchema;
         
         // TODO: host should also flush shareplay from server snapshots
-        // if (isHost()) return;
+        if (isHost()) return;
         flushSharePlayFromServerSnapshots();
         break;
       case "player.state":
@@ -88,7 +88,7 @@ export const useJamStore = defineStore("jam-store", () => {
         
         // TODO: host should also flush shareplay from server snapshots
         // scared this could cause some race conditions or infinite loops, to investigate
-        // if (isHost()) return;
+        if (isHost()) return;
         flushSharePlayFromServerSnapshots();
         break;
       default:
@@ -190,6 +190,23 @@ export const useJamStore = defineStore("jam-store", () => {
       const result = await musicKit.api.personalSocialProfile();
       const handle = result.attributes.handle;
       const resource = result as { id?: string };
+
+      // TODO: remove this - only for multi platform debug
+      const isLinux = window.navigator.userAgent.toLowerCase().includes("linux");
+
+      if (isLinux) {
+        identity.value = {
+          userId:
+            typeof resource.id === "string" && resource.id.length > 0
+              ? `${resource.id}-linux`
+              : `handle:${handle}-linux`,
+          name: `${result.attributes.name} (Linux)`,
+          handle: `${handle}-linux`,
+          avatar: "https://pbs.twimg.com/profile_images/1994727967587528704/p5QVaU0q_400x400.jpg",
+        };
+        return;
+      }
+
       identity.value = {
         userId:
           typeof resource.id === "string" && resource.id.length > 0
