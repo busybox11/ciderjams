@@ -117,12 +117,23 @@ export function startJamHostSession(args: {
     queue: getLastJamQueue(),
   });
 
+  let lastSentQueueCatalogIds: string[] | null = null;
+
   const pushQueueFromAdapter = () => {
     const s = socket;
     if (!s || s.ws.readyState !== WebSocket.OPEN) return;
     try {
       const payload = playerAdapter.getQueueSetPayload(getLastJamQueue());
+      const catalogIds = payload.map((e) => e.itemCatalogId);
+      if (
+        lastSentQueueCatalogIds &&
+        lastSentQueueCatalogIds.length === catalogIds.length &&
+        lastSentQueueCatalogIds.every((id, i) => id === catalogIds[i])
+      ) {
+        return;
+      }
       if (!queueSetGuard(payload, getSlices)) return;
+      lastSentQueueCatalogIds = catalogIds;
       s.send({ event: "queue.set", payload });
     } catch (e) {
       log.warn("host queue.set failed", e);
@@ -158,6 +169,7 @@ export function startJamHostSession(args: {
 
   return {
     stop: () => {
+      lastSentQueueCatalogIds = null;
       syncSource.stop();
     },
   };

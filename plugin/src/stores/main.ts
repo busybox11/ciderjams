@@ -44,7 +44,7 @@ export const useJamStore = defineStore("jam-store", () => {
     currentJam.value = payload;
   }
 
-  let sharePlayFlushScheduled = false;
+  let sharePlayFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
   function flushSharePlayFromServerSnapshots() {
     const q = lastQueueState.value;
@@ -59,12 +59,11 @@ export const useJamStore = defineStore("jam-store", () => {
   }
 
   function scheduleSharePlayFlush() {
-    if (sharePlayFlushScheduled) return;
-    sharePlayFlushScheduled = true;
-    queueMicrotask(() => {
-      sharePlayFlushScheduled = false;
+    if (sharePlayFlushTimer) clearTimeout(sharePlayFlushTimer);
+    sharePlayFlushTimer = setTimeout(() => {
+      sharePlayFlushTimer = null;
       flushSharePlayFromServerSnapshots();
-    });
+    }, 0);
   }
 
   function onSocketMessage(data: unknown) {

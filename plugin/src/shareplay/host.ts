@@ -6,11 +6,8 @@ import { createLogger } from "@ciderjams/proto";
 
 const log = createLogger("plugin", "shareplay/host");
 
-export const QUEUE_SYNC_EVENTS: string[] = [
-  "queueItemsDidChange",
-  "queuePositionDidChange"
-  // "queueModified",
-];
+/** Item list changes only; index moves use PLAYBACK_SYNC_EVENTS → player.host.sync */
+export const QUEUE_SYNC_EVENTS: string[] = ["queueItemsDidChange"];
 
 export const PLAYBACK_TIME_EVENTS: string[] = ["playbackTimeDidChange"];
 
@@ -49,12 +46,21 @@ export class SharePlayHost implements ISharePlayHostAdapter {
   private readonly internalPluginEvents = new Map<string, (...args: unknown[]) => void>();
   private lastPlaybackSync = 0;
   private playbackSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private queueSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private hooks: SharePlayHostAdapterHooks = {};
 
   constructor(
     private readonly music: MusicKit.MusicKitInstanceLoose,
     private readonly options: SharePlayHostOptions = {},
   ) {}
+
+  private triggerQueueSync() {
+    if (this.queueSyncTimer) clearTimeout(this.queueSyncTimer);
+    this.queueSyncTimer = setTimeout(() => {
+      this.queueSyncTimer = null;
+      this.hooks.onSyncQueue?.() ?? this.options.onSyncQueue?.();
+    }, 50);
+  }
 
   private triggerPlaybackSync() {
     if (this.playbackSyncTimer) return;
@@ -79,7 +85,7 @@ export class SharePlayHost implements ISharePlayHostAdapter {
 
         if (QUEUE_SYNC_EVENTS.includes(event)) {
           log.debug("triggerQueueSync");
-          this.hooks.onSyncQueue?.() ?? this.options.onSyncQueue?.();
+          this.triggerQueueSync();
         } else if (PLAYBACK_SYNC_EVENTS.includes(event)) {
           log.debug("triggerPlaybackSync");
           this.triggerPlaybackSync();
@@ -103,7 +109,7 @@ export class SharePlayHost implements ISharePlayHostAdapter {
         
         if (INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS.includes(event)) {
           log.debug("triggerQueueSync");
-          this.hooks.onSyncQueue?.() ?? this.options.onSyncQueue?.();
+          this.triggerQueueSync();
         }
       };
       this.internalPluginEvents.set(event, handler);
@@ -112,6 +118,11 @@ export class SharePlayHost implements ISharePlayHostAdapter {
   }
 
   public eject() {
+    if (this.queueSyncTimer) clearTimeout(this.queueSyncTimer);
+    this.queueSyncTimer = null;
+    if (this.playbackSyncTimer) clearTimeout(this.playbackSyncTimer);
+    this.playbackSyncTimer = null;
+
     const dispatcher = getMusicKitAppDispatcher(this.music);
     if (!dispatcher) return;
 

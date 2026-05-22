@@ -258,11 +258,9 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       };
     }
 
+    const priorQueueIds = this.lastServerQueueIds;
     const reorderOnly =
-      !!this.lastServerQueueIds &&
-      this.isSameQueueItems(this.lastServerQueueIds, catalogIds);
-
-    this.lastServerQueueIds = catalogIds;
+      !!priorQueueIds && this.isSameQueueItems(priorQueueIds, catalogIds);
 
     let instantiatedQueue: MusicKit.MediaItem[];
     if (reorderOnly) {
@@ -332,6 +330,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
         if (this.isStaleSync(gen)) return null;
         didApplyPlaybackPosition = true;
       }
+      this.lastServerQueueIds = catalogIds;
       return {
         queueChanged: true,
         instantiatedQueue,
@@ -354,6 +353,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       didApplyPlaybackPosition = true;
     }
 
+    this.lastServerQueueIds = catalogIds;
     return {
       queueChanged: true,
       instantiatedQueue,
