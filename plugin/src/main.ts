@@ -9,6 +9,7 @@ import { devtools } from "@vue/devtools";
 import { createPinia, setActivePinia } from "pinia";
 import { defineCustomElement, type App } from "vue";
 
+import JamToastHost from "./components/JamToastHost.vue";
 import MainModalView from "./components/MainModal/MainModalView.vue";
 import MenuIndicator from "./components/MainModal/MenuIndicator.vue";
 
@@ -147,6 +148,11 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
 
       const musickit = useMusicKit();
       log.log("MusicKit", musickit);
+
+      const toastHost = document.createElement("div");
+      toastHost.id = "ciderjams-toast-root";
+      document.body.appendChild(toastHost);
+      mountInto(JamToastHost, toastHost);
 
       const sharePlayStore = useSharePlayStore();
       log.log("SharePlay store", sharePlayStore);

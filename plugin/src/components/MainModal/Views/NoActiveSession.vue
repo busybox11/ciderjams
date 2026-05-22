@@ -5,6 +5,7 @@ import JamMemberListItem from "../../shared/JamMemberListItem.vue";
 import ModalHeader from "../../shared/ModalHeader.vue";
 
 import { log } from "../../../lib/logger";
+import { showJamAlert } from "../../../lib/notifications";
 import { useJamStore } from "../../../stores/main";
 
 const jamStore = useJamStore();
@@ -23,6 +24,8 @@ const joinJam = async () => {
     await jamStore.joinJam(roomCode.value);
   } catch (e) {
     log.error(e);
+    const message = e instanceof Error ? e.message : "Could not join session";
+    showJamAlert(message, "Couldn't join");
   }
 };
 </script>

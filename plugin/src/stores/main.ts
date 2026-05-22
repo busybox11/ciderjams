@@ -21,6 +21,11 @@ import {
   type JamHostSessionHandle,
 } from "../lib/jam/session";
 import { log } from "../lib/logger";
+import {
+  jamErrorMessage,
+  showJamAlert,
+  showJamMemberEvent,
+} from "../lib/notifications";
 import { SharePlayGuestActions } from "../shareplay/guest-actions";
 import { useSharePlayStore } from "./shareplay";
 
@@ -32,6 +37,7 @@ export const useJamStore = defineStore("jam-store", () => {
   const lastPlayerState = shallowRef<PlayerStateSchema | null>(null);
   const jamHostSession = shallowRef<JamHostSessionHandle | null>(null);
   const guestActions = shallowRef<SharePlayGuestActions | null>(null);
+  const pendingRoomJoin = ref(false);
 
   const isHost = () => jamHostSession.value !== null;
 
@@ -40,7 +46,47 @@ export const useJamStore = defineStore("jam-store", () => {
     socket.value = null;
   }
 
+  function notifyParticipantChanges(
+    prev: RoomStateSchema,
+    next: RoomStateSchema,
+  ) {
+    const me = identity.value?.userId;
+    const prevIds = new Set(prev.participants.map((p) => p.userId));
+    const nextIds = new Set(next.participants.map((p) => p.userId));
+
+    for (const p of next.participants) {
+      if (!prevIds.has(p.userId) && p.userId !== me) {
+        showJamMemberEvent(`${p.name} joined the session.`, "Member joined");
+      }
+    }
+
+    for (const p of prev.participants) {
+      if (
+        !nextIds.has(p.userId) &&
+        p.userId !== me &&
+        p.userId !== prev.hostUserId
+      ) {
+        showJamMemberEvent(`${p.name} left the session.`, "Member left");
+      }
+    }
+  }
+
   function applyRoomState(payload: RoomStateSchema) {
+    const prev = currentJam.value;
+    pendingRoomJoin.value = false;
+
+    if (prev) {
+      const hostGone =
+        !isHost() &&
+        !payload.participants.some((p) => p.userId === prev.hostUserId);
+      if (hostGone) {
+        showJamAlert("The host ended the listening session.", "Session ended");
+        leaveJam();
+        return;
+      }
+      notifyParticipantChanges(prev, payload);
+    }
+
     currentJam.value = payload;
   }
 
@@ -81,7 +127,15 @@ export const useJamStore = defineStore("jam-store", () => {
 
     const msg = parsed.data;
     if ("type" in msg) {
-      if (msg.type === "error") log.error("Jam socket error:", msg.message);
+      log.error("Jam socket error:", msg.message);
+      const { message, title } = jamErrorMessage(msg.message);
+      if (pendingRoomJoin.value && !currentJam.value) {
+        pendingRoomJoin.value = false;
+        abortPendingJoin();
+        showJamAlert(message, title);
+        return;
+      }
+      if (currentJam.value) showJamAlert(message, title);
       return;
     }
     switch (msg.event) {
@@ -162,18 +216,25 @@ export const useJamStore = defineStore("jam-store", () => {
     guestActions.value = new SharePlayGuestActions(
       mk,
       client,
-      () =>
-        useSharePlayStore().inhibitor?.isSuppressingGuestActions() ?? false,
+      () => useSharePlayStore().inhibitor?.isSuppressingGuestActions() ?? false,
       () => lastQueueState.value,
     );
     guestActions.value.start();
+    pendingRoomJoin.value = true;
     client.send({
       event: "room.join",
       payload: { roomCode: code },
     });
   }
 
+  function abortPendingJoin() {
+    guestActions.value?.stop();
+    guestActions.value = null;
+    useSharePlayStore().deactivate();
+  }
+
   function leaveJam() {
+    pendingRoomJoin.value = false;
     jamHostSession.value?.stop();
     jamHostSession.value = null;
     guestActions.value?.stop();
@@ -198,7 +259,9 @@ export const useJamStore = defineStore("jam-store", () => {
       const resource = result as { id?: string };
 
       // TODO: remove this - only for multi platform debug
-      const isLinux = window.navigator.userAgent.toLowerCase().includes("linux");
+      const isLinux = window.navigator.userAgent
+        .toLowerCase()
+        .includes("linux");
 
       if (isLinux) {
         identity.value = {
@@ -208,7 +271,8 @@ export const useJamStore = defineStore("jam-store", () => {
               : `handle:${handle}-linux`,
           name: `${result.attributes.name} (Linux)`,
           handle: `${handle}-linux`,
-          avatar: "https://pbs.twimg.com/profile_images/1994727967587528704/p5QVaU0q_400x400.jpg",
+          avatar:
+            "https://pbs.twimg.com/profile_images/1994727967587528704/p5QVaU0q_400x400.jpg",
         };
         return;
       }
