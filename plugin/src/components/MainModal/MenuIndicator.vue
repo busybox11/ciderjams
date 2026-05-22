@@ -24,6 +24,12 @@ const currentJamOwner = computed(() => {
   </div>
 </template>
 
+<style>
+.chrome-button[sfc-name="PluginBaseButton"]:has(.menu-indicator.active) {
+  background-color: #00ff333a !important;
+}
+</style>
+
 <style scoped>
 .menu-indicator {
   display: flex;
