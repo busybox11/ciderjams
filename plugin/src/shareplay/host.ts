@@ -7,7 +7,7 @@ import type {
   ISharePlayHostAdapter,
   SharePlayHostAdapterHooks,
 } from "./adapter";
-import { getMusicKitAppDispatcher } from "./musickit-bridge";
+import { subscribeMusicKitEvent } from "./musickit-bridge";
 
 import { createLogger } from "@ciderjams/proto";
 
@@ -49,7 +49,7 @@ export type SharePlayHostOptions = {
 };
 
 export class SharePlayHost implements ISharePlayHostAdapter {
-  private readonly events = new Map<string, (...args: unknown[]) => void>();
+  private readonly eventCleanups: (() => void)[] = [];
   private readonly internalPluginEvents = new Map<
     string,
     (...args: unknown[]) => void
@@ -58,27 +58,45 @@ export class SharePlayHost implements ISharePlayHostAdapter {
   private playbackSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private hostStateSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private hooks: SharePlayHostAdapterHooks = {};
+  private suppressOutgoingSyncUntil = 0;
 
   constructor(
     private readonly music: MusicKit.MusicKitInstanceLoose,
     private readonly options: SharePlayHostOptions = {},
   ) {}
 
+  /** skip host pushes while applying server-driven play/pause locally */
+  public suppressOutgoingSync(durationMs = 750): void {
+    this.suppressOutgoingSyncUntil = Date.now() + durationMs;
+    if (this.hostStateSyncTimer) clearTimeout(this.hostStateSyncTimer);
+    this.hostStateSyncTimer = null;
+    if (this.playbackSyncTimer) clearTimeout(this.playbackSyncTimer);
+    this.playbackSyncTimer = null;
+  }
+
+  private isSuppressingOutgoingSync(): boolean {
+    return Date.now() < this.suppressOutgoingSyncUntil;
+  }
+
   /** debounced host push */
   private triggerHostStateSync() {
+    if (this.isSuppressingOutgoingSync()) return;
     if (this.hostStateSyncTimer) clearTimeout(this.hostStateSyncTimer);
     this.hostStateSyncTimer = setTimeout(() => {
       this.hostStateSyncTimer = null;
+      if (this.isSuppressingOutgoingSync()) return;
       this.hooks.onSyncQueue?.() ?? this.options.onSyncQueue?.();
     }, 50);
   }
 
   private triggerPlaybackSync() {
-    if (this.playbackSyncTimer) return;
+    if (this.isSuppressingOutgoingSync()) return;
+    if (this.playbackSyncTimer) clearTimeout(this.playbackSyncTimer);
     this.playbackSyncTimer = setTimeout(() => {
+      this.playbackSyncTimer = null;
+      if (this.isSuppressingOutgoingSync()) return;
       this.hooks.onSyncPlayback?.() ?? this.options.onSyncPlayback?.();
       this.lastPlaybackSync = Date.now();
-      this.playbackSyncTimer = null;
     }, 50);
   }
 
@@ -86,9 +104,6 @@ export class SharePlayHost implements ISharePlayHostAdapter {
     if (hooks) {
       this.hooks = hooks;
     }
-
-    const dispatcher = getMusicKitAppDispatcher(this.music);
-    if (!dispatcher) return;
 
     for (const event of MK_SUBSCRIBE_EVENTS) {
       const handler = (..._args: unknown[]) => {
@@ -108,8 +123,9 @@ export class SharePlayHost implements ISharePlayHostAdapter {
           }
         }
       };
-      this.events.set(event, handler);
-      dispatcher.subscribe(event, handler);
+      this.eventCleanups.push(
+        subscribeMusicKitEvent(this.music, event, handler),
+      );
     }
 
     // ew ugly ew but it works for now so dont criticise me or i will cry
@@ -134,13 +150,8 @@ export class SharePlayHost implements ISharePlayHostAdapter {
     if (this.playbackSyncTimer) clearTimeout(this.playbackSyncTimer);
     this.playbackSyncTimer = null;
 
-    const dispatcher = getMusicKitAppDispatcher(this.music);
-    if (!dispatcher) return;
-
-    this.events.forEach((handler, event) => {
-      dispatcher.unsubscribe(event, handler);
-    });
-    this.events.clear();
+    for (const dispose of this.eventCleanups) dispose();
+    this.eventCleanups.length = 0;
 
     for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
       internalPluginEvents.removeEventListener(

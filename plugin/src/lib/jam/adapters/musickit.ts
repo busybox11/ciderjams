@@ -40,4 +40,8 @@ export class MusicKitJamHostSyncSource implements JamHostSyncSource {
   stop(): void {
     this.host.eject();
   }
+
+  suppressOutgoingSync(durationMs?: number): void {
+    this.host.suppressOutgoingSync(durationMs);
+  }
 }

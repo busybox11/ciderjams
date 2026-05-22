@@ -145,6 +145,7 @@ async function createRoom() {
   sessionRef.value = startJamHostSession({
     socket: client,
     getLastJamQueue: () => lastQueueState.value,
+    getLastJamPlayer: () => lastPlayerState.value,
     playerAdapter,
     syncSource: manualSync,
   });

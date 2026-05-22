@@ -11,7 +11,7 @@ import {
   mapShuffleMode,
   playbackPositionMs,
 } from "../lib/musickit/payloads";
-import { getMusicKitAppDispatcher } from "./musickit-bridge";
+import { subscribeMusicKitEvent } from "./musickit-bridge";
 
 const log = createLogger("plugin", "shareplay/guest-actions");
 
@@ -19,9 +19,23 @@ const PLAY_EVENTS = new Set(["playbackPlay"]);
 const PAUSE_EVENTS = new Set(["playbackPause", "playbackStop"]);
 const SEEK_EVENTS = new Set(["playbackSeek", "playbackScrub"]);
 
+const GUEST_MUSICKIT_EVENTS = [
+  "playbackPlay",
+  "playbackPause",
+  "playbackStop",
+  "playbackStateDidChange",
+  "playbackSeek",
+  "playbackScrub",
+  "queueItemsDidChange",
+  "queuePositionDidChange",
+  "repeatModeDidChange",
+  "shuffleModeDidChange",
+] as const;
+
 export class SharePlayGuestActions {
-  private readonly handlers = new Map<string, (...args: unknown[]) => void>();
+  private readonly eventCleanups: (() => void)[] = [];
   private lastKnownIndex: number;
+  private lastEmittedPlaying: boolean | null = null;
   private seekTimer: ReturnType<typeof setTimeout> | null = null;
   private queueTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -35,34 +49,20 @@ export class SharePlayGuestActions {
   }
 
   start(): void {
-    const dispatcher = getMusicKitAppDispatcher(this.music);
-    if (!dispatcher) return;
-
-    for (const event of [
-      "playbackPlay",
-      "playbackPause",
-      "playbackStop",
-      "playbackSeek",
-      "playbackScrub",
-      "queueItemsDidChange",
-      "queuePositionDidChange",
-      "repeatModeDidChange",
-      "shuffleModeDidChange",
-    ]) {
-      const handler = () => this.handleMusicKitEvent(event);
-      this.handlers.set(event, handler);
-      dispatcher.subscribe(event, handler);
+    this.lastEmittedPlaying = this.music.isPlaying;
+    for (const event of GUEST_MUSICKIT_EVENTS) {
+      this.eventCleanups.push(
+        subscribeMusicKitEvent(this.music, event, (data) =>
+          this.handleMusicKitEvent(event, data),
+        ),
+      );
     }
   }
 
   stop(): void {
-    const dispatcher = getMusicKitAppDispatcher(this.music);
-    if (dispatcher) {
-      this.handlers.forEach((handler, event) => {
-        dispatcher.unsubscribe(event, handler);
-      });
-    }
-    this.handlers.clear();
+    for (const dispose of this.eventCleanups) dispose();
+    this.eventCleanups.length = 0;
+    this.lastEmittedPlaying = null;
     if (this.seekTimer) clearTimeout(this.seekTimer);
     if (this.queueTimer) clearTimeout(this.queueTimer);
     this.seekTimer = null;
@@ -104,8 +104,29 @@ export class SharePlayGuestActions {
     }, 100);
   }
 
-  private handleMusicKitEvent(event: string): void {
+  private isPlayingFromEvent(event: string, data: unknown): boolean {
+    if (event === "playbackStateDidChange" && data && typeof data === "object") {
+      const state = (data as { state?: number }).state;
+      if (state === MusicKit.PlaybackStates.playing) return true;
+      if (
+        state === MusicKit.PlaybackStates.paused ||
+        state === MusicKit.PlaybackStates.stopped
+      ) {
+        return false;
+      }
+    }
+    return this.music.isPlaying;
+  }
+
+  private handleMusicKitEvent(event: string, data?: unknown): void {
     if (this.shouldSuppress()) {
+      if (
+        event === "playbackStateDidChange" ||
+        PLAY_EVENTS.has(event) ||
+        PAUSE_EVENTS.has(event)
+      ) {
+        this.lastEmittedPlaying = this.music.isPlaying;
+      }
       if (event === "queuePositionDidChange") {
         this.lastKnownIndex = this.music.nowPlayingItemIndex ?? 0;
       }
@@ -121,12 +142,17 @@ export class SharePlayGuestActions {
     }
 
     if (PLAY_EVENTS.has(event)) {
-      this.send({ event: "player.play", payload: {} });
+      this.emitPlayPause(true);
       return;
     }
 
     if (PAUSE_EVENTS.has(event)) {
-      this.send({ event: "player.pause", payload: {} });
+      this.emitPlayPause(false);
+      return;
+    }
+
+    if (event === "playbackStateDidChange") {
+      this.emitPlayPause(this.isPlayingFromEvent(event, data));
       return;
     }
 
@@ -159,6 +185,15 @@ export class SharePlayGuestActions {
         payload: { shuffleMode: mapShuffleMode(this.music.shuffleMode ?? 0) },
       });
     }
+  }
+
+  private emitPlayPause(playing: boolean): void {
+    if (this.lastEmittedPlaying === playing) return;
+    this.lastEmittedPlaying = playing;
+    this.send({
+      event: playing ? "player.play" : "player.pause",
+      payload: {},
+    });
   }
 
   private sendIndexChange(): void {

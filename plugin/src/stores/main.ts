@@ -46,7 +46,7 @@ export const useJamStore = defineStore("jam-store", () => {
 
   let sharePlayFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
-  function flushSharePlayFromServerSnapshots() {
+  async function flushSharePlayFromServerSnapshots() {
     const q = lastQueueState.value;
     const p = lastPlayerState.value;
     if (!Array.isArray(q) || !p) return;
@@ -54,8 +54,10 @@ export const useJamStore = defineStore("jam-store", () => {
     const share = useSharePlayStore();
     if (!share.inhibitor) return;
 
+    if (isHost()) jamHostSession.value?.suppressHostSync(5000);
+
     const payload = jamPlaybackToSharePlayPayload(q, p);
-    void share.syncFromServer(payload);
+    await share.syncFromServer(payload);
   }
 
   function scheduleSharePlayFlush() {
@@ -88,17 +90,10 @@ export const useJamStore = defineStore("jam-store", () => {
         break;
       case "queue.state":
         lastQueueState.value = msg.payload as QueueStateSchema;
-        
-        // TODO: host should also flush shareplay from server snapshots
-        if (isHost()) return;
         scheduleSharePlayFlush();
         break;
       case "player.state":
         lastPlayerState.value = msg.payload as PlayerStateSchema;
-        
-        // TODO: host should also flush shareplay from server snapshots
-        // scared this could cause some race conditions or infinite loops, to investigate
-        if (isHost()) return;
         scheduleSharePlayFlush();
         break;
       default:
@@ -140,6 +135,7 @@ export const useJamStore = defineStore("jam-store", () => {
     jamHostSession.value = startJamHostSession({
       socket: client,
       getLastJamQueue: () => lastQueueState.value,
+      getLastJamPlayer: () => lastPlayerState.value,
       playerAdapter,
       syncSource,
     });

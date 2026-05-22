@@ -1,5 +1,6 @@
 import type {
   PlayerHostSyncPayload,
+  PlayerStateSchema,
   QueueSetPayload,
   QueueStateSchema,
 } from "@ciderjams/proto";
@@ -12,10 +13,12 @@ import type { JamHostPlayerAdapter } from "./player-adapter";
 export interface JamHostSyncSource {
   start(hooks: SharePlayHostAdapterHooks): void;
   stop(): void;
+  suppressOutgoingSync?(durationMs?: number): void;
 }
 
 export type JamHostSessionHandle = {
   stop: () => void;
+  suppressHostSync: (durationMs?: number) => void;
 };
 
 export function waitForWebSocketOpen(client: CiderSyncSocket): Promise<void> {
@@ -76,6 +79,22 @@ const QUEUE_SET_GUARDS: ([(
   ],
 ];
 
+function isSamePlayerSliceAsServer(
+  adapter: PlayerHostSyncPayload["playbackState"],
+  server: PlayerStateSchema | null,
+): boolean {
+  if (!server) return false;
+  return (
+    adapter.isPlaying === server.isPlaying &&
+    adapter.currentPlayingIndex === server.currentPlayingIndex &&
+    adapter.repeatMode === server.repeatMode &&
+    adapter.shuffleMode === server.shuffleMode &&
+    adapter.autoPlay === server.autoPlay &&
+    adapter.playbackState === server.playbackState &&
+    Math.abs(adapter.elapsedTimeMs - server.elapsedTimeMs) < 500
+  );
+}
+
 function playbackStateGuard(state: PlayerHostSyncPayload["playbackState"]): boolean {
   for (const [guard, message] of PLAYBACK_STATE_GUARDS) {
     if (!guard(state)) {
@@ -108,10 +127,12 @@ function queueSetGuard(
 export function startJamHostSession(args: {
   socket: CiderSyncSocket;
   getLastJamQueue: () => QueueStateSchema | null;
+  getLastJamPlayer: () => PlayerStateSchema | null;
   playerAdapter: JamHostPlayerAdapter;
   syncSource: JamHostSyncSource;
 }): JamHostSessionHandle {
-  const { socket, getLastJamQueue, playerAdapter, syncSource } = args;
+  const { socket, getLastJamQueue, getLastJamPlayer, playerAdapter, syncSource } =
+    args;
 
   const getSlices = (): JamHostSharedSlices => ({
     queue: getLastJamQueue(),
@@ -146,6 +167,7 @@ export function startJamHostSession(args: {
 
     const state = playerAdapter.getHostSyncPlaybackState();
     if (!playbackStateGuard(state)) return;
+    if (isSamePlayerSliceAsServer(state, getLastJamPlayer())) return;
 
     s.send({
       event: "player.host.sync",
@@ -176,6 +198,9 @@ export function startJamHostSession(args: {
     stop: () => {
       lastSentQueueCatalogIds = null;
       syncSource.stop();
+    },
+    suppressHostSync: (durationMs) => {
+      syncSource.suppressOutgoingSync?.(durationMs);
     },
   };
 }
