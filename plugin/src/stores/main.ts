@@ -44,6 +44,8 @@ export const useJamStore = defineStore("jam-store", () => {
     currentJam.value = payload;
   }
 
+  let sharePlayFlushScheduled = false;
+
   function flushSharePlayFromServerSnapshots() {
     const q = lastQueueState.value;
     const p = lastPlayerState.value;
@@ -54,6 +56,15 @@ export const useJamStore = defineStore("jam-store", () => {
 
     const payload = jamPlaybackToSharePlayPayload(q, p);
     void share.syncFromServer(payload);
+  }
+
+  function scheduleSharePlayFlush() {
+    if (sharePlayFlushScheduled) return;
+    sharePlayFlushScheduled = true;
+    queueMicrotask(() => {
+      sharePlayFlushScheduled = false;
+      flushSharePlayFromServerSnapshots();
+    });
   }
 
   function onSocketMessage(data: unknown) {
@@ -81,7 +92,7 @@ export const useJamStore = defineStore("jam-store", () => {
         
         // TODO: host should also flush shareplay from server snapshots
         if (isHost()) return;
-        flushSharePlayFromServerSnapshots();
+        scheduleSharePlayFlush();
         break;
       case "player.state":
         lastPlayerState.value = msg.payload as PlayerStateSchema;
@@ -89,7 +100,7 @@ export const useJamStore = defineStore("jam-store", () => {
         // TODO: host should also flush shareplay from server snapshots
         // scared this could cause some race conditions or infinite loops, to investigate
         if (isHost()) return;
-        flushSharePlayFromServerSnapshots();
+        scheduleSharePlayFlush();
         break;
       default:
         break;
