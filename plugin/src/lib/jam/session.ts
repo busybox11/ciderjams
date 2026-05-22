@@ -155,8 +155,13 @@ export function startJamHostSession(args: {
     });
   };
 
+  const pushHostStateFromAdapter = () => {
+    pushQueueFromAdapter();
+    pushPlaybackFromAdapter();
+  };
+
   syncSource.start({
-    onSyncQueue: pushQueueFromAdapter,
+    onSyncQueue: pushHostStateFromAdapter,
     onSyncPlayback: pushPlaybackFromAdapter,
   });
 

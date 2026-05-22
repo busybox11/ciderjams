@@ -128,7 +128,7 @@ function queuePlayerCommand(
   return ({ room, rawPayload, actorId }) => {
     const data = parseClientPayload("queue.set", rawPayload);
     run(room, actorId, data);
-    return { messages: [queueSlice(room), playerSlice(room)] };
+    return { messages: [queueSlice(room)] };
   };
 }
 

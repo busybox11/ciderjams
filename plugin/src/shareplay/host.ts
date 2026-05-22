@@ -1,5 +1,12 @@
-import { INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS, INTERNAL_PLUGIN_SUBSCRIBE_EVENTS, internalPluginEvents } from "../lib/events";
-import type { ISharePlayHostAdapter, SharePlayHostAdapterHooks } from "./adapter";
+import {
+  INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS,
+  INTERNAL_PLUGIN_SUBSCRIBE_EVENTS,
+  internalPluginEvents,
+} from "../lib/events";
+import type {
+  ISharePlayHostAdapter,
+  SharePlayHostAdapterHooks,
+} from "./adapter";
 import { getMusicKitAppDispatcher } from "./musickit-bridge";
 
 import { createLogger } from "@ciderjams/proto";
@@ -43,10 +50,13 @@ export type SharePlayHostOptions = {
 
 export class SharePlayHost implements ISharePlayHostAdapter {
   private readonly events = new Map<string, (...args: unknown[]) => void>();
-  private readonly internalPluginEvents = new Map<string, (...args: unknown[]) => void>();
+  private readonly internalPluginEvents = new Map<
+    string,
+    (...args: unknown[]) => void
+  >();
   private lastPlaybackSync = 0;
   private playbackSyncTimer: ReturnType<typeof setTimeout> | null = null;
-  private queueSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private hostStateSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private hooks: SharePlayHostAdapterHooks = {};
 
   constructor(
@@ -54,10 +64,11 @@ export class SharePlayHost implements ISharePlayHostAdapter {
     private readonly options: SharePlayHostOptions = {},
   ) {}
 
-  private triggerQueueSync() {
-    if (this.queueSyncTimer) clearTimeout(this.queueSyncTimer);
-    this.queueSyncTimer = setTimeout(() => {
-      this.queueSyncTimer = null;
+  /** debounced host push */
+  private triggerHostStateSync() {
+    if (this.hostStateSyncTimer) clearTimeout(this.hostStateSyncTimer);
+    this.hostStateSyncTimer = setTimeout(() => {
+      this.hostStateSyncTimer = null;
       this.hooks.onSyncQueue?.() ?? this.options.onSyncQueue?.();
     }, 50);
   }
@@ -84,11 +95,11 @@ export class SharePlayHost implements ISharePlayHostAdapter {
         // log.debug("handleEvent", event, ..._args);
 
         if (QUEUE_SYNC_EVENTS.includes(event)) {
-          log.debug("triggerQueueSync");
-          this.triggerQueueSync();
+          log.debug("triggerHostStateSync (queue)");
+          this.triggerHostStateSync();
         } else if (PLAYBACK_SYNC_EVENTS.includes(event)) {
-          log.debug("triggerPlaybackSync");
-          this.triggerPlaybackSync();
+          log.debug("triggerHostStateSync (playback)");
+          this.triggerHostStateSync();
         } else if (PLAYBACK_TIME_EVENTS.includes(event)) {
           const now = Date.now();
           if (now - this.lastPlaybackSync >= 10000) {
@@ -106,10 +117,10 @@ export class SharePlayHost implements ISharePlayHostAdapter {
     for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
       const handler = (..._args: unknown[]) => {
         log.debug("handleInternalPluginEvent", event, ..._args);
-        
+
         if (INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS.includes(event)) {
-          log.debug("triggerQueueSync");
-          this.triggerQueueSync();
+          log.debug("triggerHostStateSync (internal queue)");
+          this.triggerHostStateSync();
         }
       };
       this.internalPluginEvents.set(event, handler);
@@ -118,8 +129,8 @@ export class SharePlayHost implements ISharePlayHostAdapter {
   }
 
   public eject() {
-    if (this.queueSyncTimer) clearTimeout(this.queueSyncTimer);
-    this.queueSyncTimer = null;
+    if (this.hostStateSyncTimer) clearTimeout(this.hostStateSyncTimer);
+    this.hostStateSyncTimer = null;
     if (this.playbackSyncTimer) clearTimeout(this.playbackSyncTimer);
     this.playbackSyncTimer = null;
 
@@ -132,7 +143,10 @@ export class SharePlayHost implements ISharePlayHostAdapter {
     this.events.clear();
 
     for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
-      internalPluginEvents.removeEventListener(event, this.internalPluginEvents.get(event) ?? null);
+      internalPluginEvents.removeEventListener(
+        event,
+        this.internalPluginEvents.get(event) ?? null,
+      );
       this.internalPluginEvents.delete(event);
     }
   }

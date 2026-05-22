@@ -158,8 +158,11 @@ export class Room {
     let { currentPlayingIndex } = this.#meta.playbackState;
     if (queue.length === 0) {
       currentPlayingIndex = 0;
-    } else if (currentPlayingIndex >= queue.length) {
-      currentPlayingIndex = queue.length - 1;
+    } else {
+      if (currentPlayingIndex < 0) currentPlayingIndex = 0;
+      else if (currentPlayingIndex >= queue.length) {
+        currentPlayingIndex = queue.length - 1;
+      }
     }
 
     this.#patchState({ queue, currentPlayingIndex });

@@ -121,7 +121,7 @@ export function makePlayerHostSyncPayload(
   music: MusicKit.MusicKitInstanceLoose,
 ): PlayerHostSyncPayload["playbackState"] {
   const payload = {
-    currentPlayingIndex: music.nowPlayingItemIndex ?? 0,
+    currentPlayingIndex: Math.max(0, music.nowPlayingItemIndex ?? 0),
     playbackState: mapPlaybackState(music.playbackState),
     repeatMode: mapRepeatMode(music.repeatMode ?? 0),
     shuffleMode: mapShuffleMode(music.shuffleMode ?? 0),
