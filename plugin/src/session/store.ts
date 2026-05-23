@@ -9,7 +9,8 @@ import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
 import { type CiderSyncSocket } from "../api/client";
-import { jamErrorMessage, showJamAlert } from "../ui/notifications";
+import { showJamAlert } from "../ui/notifications";
+import { handleJamSocketError } from "./socket-errors";
 import { useSharePlayStore } from "../playback/store";
 import { JamGuestActions } from "./guest/actions";
 import {
@@ -22,8 +23,8 @@ import {
 } from "./host/session";
 import { ensureJamIdentity, prefetchJamIdentity } from "./identity";
 import { transitionRoomState } from "./room-lifecycle";
+import { createJamStoreInboundSync } from "./playback-bindings";
 import { connectJamSocket } from "./socket";
-import { createJamInboundSync, jamPlaybackToSharePlayPayload } from "./sync/inbound";
 
 export const useJamStore = defineStore("jam-store", () => {
   const socket = shallowRef<CiderSyncSocket | null>(null);
@@ -37,23 +38,12 @@ export const useJamStore = defineStore("jam-store", () => {
 
   const isHost = () => jamHostSession.value !== null;
 
-  const inboundSync = createJamInboundSync({
+  const inboundSync = createJamStoreInboundSync({
     getMusicKit: () => MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose | null,
     getQueue: () => lastQueueState.value,
     getPlayer: () => lastPlayerState.value,
     isHost,
-    suppressLocalSync(ms) {
-      const share = useSharePlayStore();
-      share.bumpGuestActionSuppress(ms);
-      if (isHost()) jamHostSession.value?.suppressHostPlaybackSync(ms);
-    },
-    applyQueueViaSharePlay(queue, player) {
-      const share = useSharePlayStore();
-      if (!share.inhibitor) return Promise.resolve();
-      return (
-        share.syncFromServer(jamPlaybackToSharePlayPayload(queue, player)) ?? Promise.resolve()
-      );
-    },
+    getJamHostSession: () => jamHostSession.value,
   });
 
   function detachSocket() {
@@ -62,14 +52,14 @@ export const useJamStore = defineStore("jam-store", () => {
   }
 
   function onSocketError(rawMessage: string) {
-    const { message, title } = jamErrorMessage(rawMessage);
-    if (pendingRoomJoin.value && !currentJam.value) {
-      pendingRoomJoin.value = false;
-      abortPendingJoin();
-      showJamAlert(message, title);
-      return;
-    }
-    if (currentJam.value) showJamAlert(message, title);
+    handleJamSocketError(rawMessage, {
+      pendingRoomJoin: pendingRoomJoin.value,
+      hasCurrentJam: !!currentJam.value,
+      onPendingJoinFailed() {
+        pendingRoomJoin.value = false;
+        abortPendingJoin();
+      },
+    });
   }
 
   async function getConnectedSocket(): Promise<CiderSyncSocket> {
