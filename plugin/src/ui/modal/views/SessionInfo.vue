@@ -19,7 +19,12 @@ const leaveSession = () => {
     <ModalHeader title="Listening session" :description="`Connected - ${currentJam?.participants.length} members`" />
 
     <div class="ciderjams-session-members">
-      <JamMemberListItem :member="member" v-for="member in currentJam?.participants" :key="member.userId" />
+      <JamMemberListItem
+        v-for="member in currentJam?.participants"
+        :key="member.userId"
+        :member="member"
+        :is-host="member.userId === currentJam?.hostUserId"
+      />
     </div>
 
     <hr class="ciderjams-divider" />

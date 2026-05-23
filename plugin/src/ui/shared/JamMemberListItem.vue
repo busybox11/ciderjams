@@ -1,16 +1,10 @@
 <script setup lang="ts">
 import type { roomParticipant } from '@ciderjams/proto';
 
-import { useJamStore } from "../../session/store";
-
-const jamStore = useJamStore();
-
-const props = defineProps<{
+defineProps<{
   member: roomParticipant;
+  isHost?: boolean;
 }>();
-
-const currentJam = computed(() => jamStore.currentJam);
-const isHost = computed(() => currentJam.value?.hostUserId === props.member.userId);
 </script>
 
 <template>

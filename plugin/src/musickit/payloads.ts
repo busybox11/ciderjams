@@ -12,7 +12,7 @@ import {
   type SchemaInput,
 } from "@ciderjams/proto";
 
-const log = createLogger("plugin", "lib/musickit/payloads");
+const log = createLogger("plugin", "musickit/payloads");
 
 function mapPlaybackState(state: MusicKit.PlaybackStates): PlayerStateSchema["playbackState"] {
   switch (state) {
