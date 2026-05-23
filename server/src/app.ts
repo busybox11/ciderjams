@@ -18,9 +18,7 @@ function asHubSocket(ws: { raw: HubSocket } | HubSocket): HubSocket {
     : (ws as HubSocket);
 }
 
-export const app = new Elysia()
-  .get("/", () => "ciderjams sync\n")
-  .ws("/ws", {
+const roomWs = new Elysia({ prefix: "/v1" }).ws("/ws", {
     query: roomParticipant,
     body: clientWireMessageSchema,
     error({ error }) {
@@ -47,5 +45,9 @@ export const app = new Elysia()
       hub.onDisconnect(asHubSocket(ws), registry);
     },
   });
+
+export const app = new Elysia()
+  .get("/", () => "ciderjams sync\n")
+  .use(roomWs);
 
 export type App = typeof app;

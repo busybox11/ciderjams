@@ -22,7 +22,7 @@ export function ciderHealth() {
 }
 
 export function ciderSyncSocket(query: roomParticipant) {
-  const sub = ciderJamsApi().ws.subscribe({ query } as never);
+  const sub = ciderJamsApi().v1.ws.subscribe({ query } as never);
 
   // not a huge fan of this, easiest way to have keyed type inference with schemas
   // todo: find a better way
