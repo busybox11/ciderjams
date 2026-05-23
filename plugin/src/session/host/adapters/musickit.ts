@@ -3,12 +3,12 @@ import type { SharePlayHostAdapterHooks } from "../../../playback/adapter";
 import type { JamHostPlayerAdapter } from "../player-adapter";
 import type { JamHostSyncSource } from "../session";
 
-import { SharePlayHost } from "../../../playback/host-listener";
 import {
   makePlayerHostSyncPayload,
   makeQueuePayload,
   makeRoomPlaybackStatePayload,
 } from "../../../musickit/payloads";
+import { SharePlayHost } from "../../../playback/host-listener";
 
 export class MusicKitJamHostPlayerAdapter implements JamHostPlayerAdapter {
   constructor(private readonly music: MusicKit.MusicKitInstanceLoose) {}

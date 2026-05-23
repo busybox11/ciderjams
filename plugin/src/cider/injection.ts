@@ -9,7 +9,6 @@ import {
   render,
 } from "vue";
 
-
 import { createLogger } from "@ciderjams/proto";
 
 const log = createLogger("plugin", "cider/injection");

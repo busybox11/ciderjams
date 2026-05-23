@@ -1,7 +1,7 @@
 import type { PlayerStateSchema, QueueStateSchema } from "@ciderjams/proto";
+import type { JamHostSessionHandle } from "./host/session";
 
 import { useSharePlayStore } from "../playback/store";
-import type { JamHostSessionHandle } from "./host/session";
 import { createJamInboundSync, jamPlaybackToSharePlayPayload } from "./sync/inbound";
 
 export function createJamStoreInboundSync(deps: {

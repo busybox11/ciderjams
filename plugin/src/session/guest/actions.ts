@@ -2,7 +2,6 @@ import type { CiderSyncSocket } from "../../api/client";
 
 import { type ClientWireMessage, createLogger, type QueueStateSchema } from "@ciderjams/proto";
 
-import { subscribeMusicKitEvent } from "../../playback/bridge";
 import {
   INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS,
   INTERNAL_PLUGIN_SUBSCRIBE_EVENTS,
@@ -17,6 +16,7 @@ import {
   musicKitQueueCatalogIds,
   playbackPositionMs,
 } from "../../musickit/payloads";
+import { subscribeMusicKitEvent } from "../../playback/bridge";
 
 const log = createLogger("plugin", "session/guest/actions");
 

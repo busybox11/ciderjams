@@ -13,8 +13,7 @@ export function registerPluginInjectors(customElementName: (name: string) => str
     target: window.__PLUGINSYS__.App.Components.PluginBaseButton,
     key: MENU_BTN_INJECT_KEY,
 
-    match: (component) =>
-      component.$?.props?.button?.element === MENU_BTN_INJECTOR_ID,
+    match: (component) => component.$?.props?.button?.element === MENU_BTN_INJECTOR_ID,
 
     inject(component, el) {
       const host = (component.$?.vnode?.el ?? el) as HTMLElement | undefined;

@@ -1,8 +1,8 @@
 import { defineCustomElement } from "vue";
 
-import { configureApp } from "./pinia";
 import MainModalView from "../ui/modal/MainModalView.vue";
 import MenuIndicator from "../ui/modal/MenuIndicator.vue";
+import { configureApp } from "./pinia";
 
 export const CustomElements = {
   "menu-indicator": defineCustomElement(MenuIndicator, {

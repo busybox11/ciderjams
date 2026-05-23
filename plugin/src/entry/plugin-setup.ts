@@ -1,19 +1,15 @@
+import type { CustomElements } from "./elements";
+
 import { defineCustomElement } from "vue";
 
-import {
-  addCustomButton,
-  subscribeEvent,
-  useCider,
-  useMusicKit,
-} from "@ciderapp/pluginkit";
+import { addCustomButton, subscribeEvent, useCider, useMusicKit } from "@ciderapp/pluginkit";
 
-import { internalPluginEvents, InternalPluginSubscribeEvents } from "../cider/events";
+import { InternalPluginSubscribeEvents, internalPluginEvents } from "../cider/events";
 import { mountInto, setupInjection } from "../cider/injection";
 import { log } from "../cider/logger";
 import { useSharePlayStore } from "../playback/store";
 import JamToastHost from "../ui/JamToastHost.vue";
 import MySettings from "../ui/MySettings.vue";
-import type { CustomElements } from "./elements";
 import { MENU_BTN_INJECTOR_ID } from "./injectors";
 import { configureApp } from "./pinia";
 

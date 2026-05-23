@@ -1,5 +1,6 @@
-import { createPinia, setActivePinia } from "pinia";
 import type { App } from "vue";
+
+import { createPinia, setActivePinia } from "pinia";
 
 export const pinia = createPinia();
 setActivePinia(pinia);

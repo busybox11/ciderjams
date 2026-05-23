@@ -1,5 +1,4 @@
 import { log } from "../../cider/logger";
-
 import { useJamStore } from "../../session/store";
 import { showJamAlert } from "../notifications";
 

@@ -1,7 +1,7 @@
 import type { roomParticipant } from "@ciderjams/proto";
+import type { Ref } from "vue";
 
 import { useMusicKit } from "@ciderapp/pluginkit";
-import type { Ref } from "vue";
 
 import { log } from "../cider/logger";
 

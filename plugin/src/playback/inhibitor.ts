@@ -1,9 +1,9 @@
 import type { ISharePlayGuestAdapter, SharePlayGuestAdapterHooks } from "./adapter";
+import type { MusicKitWithCiderSharePlay } from "./bridge";
 import type { SharePlaySyncInput } from "./types";
 
 import { createLogger } from "@ciderjams/proto";
 
-import type { MusicKitWithCiderSharePlay } from "./bridge";
 import { MusicKitSharePlayInject } from "./inhibitor-inject";
 import { SharePlayServerSync } from "./inhibitor-sync";
 

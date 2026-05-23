@@ -4,8 +4,8 @@ import type {
   QueueSetPayload,
   QueueStateSchema,
 } from "@ciderjams/proto";
-import type { SharePlayHostAdapterHooks } from "../../playback/adapter";
 import type { CiderSyncSocket } from "../../api/client";
+import type { SharePlayHostAdapterHooks } from "../../playback/adapter";
 import type { JamHostPlayerAdapter } from "./player-adapter";
 
 import { log } from "../../cider/logger";

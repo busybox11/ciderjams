@@ -4,27 +4,21 @@ import type {
   RoomStateSchema,
   roomParticipant,
 } from "@ciderjams/proto";
+import type { CiderSyncSocket } from "../api/client";
 
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
-import { type CiderSyncSocket } from "../api/client";
-import { showJamAlert } from "../ui/notifications";
-import { handleJamSocketError } from "./socket-errors";
 import { useSharePlayStore } from "../playback/store";
+import { showJamAlert } from "../ui/notifications";
 import { JamGuestActions } from "./guest/actions";
-import {
-  MusicKitJamHostPlayerAdapter,
-  MusicKitJamHostSyncSource,
-} from "./host/adapters/musickit";
-import {
-  type JamHostSessionHandle,
-  startJamHostSession,
-} from "./host/session";
+import { MusicKitJamHostPlayerAdapter, MusicKitJamHostSyncSource } from "./host/adapters/musickit";
+import { type JamHostSessionHandle, startJamHostSession } from "./host/session";
 import { ensureJamIdentity, prefetchJamIdentity } from "./identity";
-import { transitionRoomState } from "./room-lifecycle";
 import { createJamStoreInboundSync } from "./playback-bindings";
+import { transitionRoomState } from "./room-lifecycle";
 import { connectJamSocket } from "./socket";
+import { handleJamSocketError } from "./socket-errors";
 
 export const useJamStore = defineStore("jam-store", () => {
   const socket = shallowRef<CiderSyncSocket | null>(null);
