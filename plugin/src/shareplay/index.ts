@@ -196,6 +196,14 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     );
   }
 
+  /** Ignore local MusicKit control events while applying server state. */
+  public bumpGuestActionSuppress(durationMs = 750): void {
+    this.suppressGuestActionsUntil = Math.max(
+      this.suppressGuestActionsUntil,
+      Date.now() + durationMs,
+    );
+  }
+
   private getQueueCatalogIds(queue: SharePlaySyncInput["queue"]): string[] {
     return queue.map(
       (item) => item.attributes?.playParams?.catalogId ?? item.id,

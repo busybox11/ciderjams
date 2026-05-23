@@ -47,6 +47,31 @@ export function mapShuffleMode(
   return mode === 1 ? "SHUFFLE_ON" : "SHUFFLE_OFF";
 }
 
+const REPEAT_MODE_TO_MK: Record<
+  PlayerStateSchema["repeatMode"],
+  MusicKit.PlayerRepeatMode
+> = {
+  REPEAT_OFF: 0,
+  REPEAT_ALL: 1,
+  REPEAT_ONE: 2,
+};
+
+export function applyRepeatModeToMusicKit(
+  music: MusicKit.MusicKitInstanceLoose,
+  mode: PlayerStateSchema["repeatMode"],
+): void {
+  const next = REPEAT_MODE_TO_MK[mode] ?? 0;
+  if ((music.repeatMode ?? 0) !== next) music.repeatMode = next;
+}
+
+export function applyShuffleModeToMusicKit(
+  music: MusicKit.MusicKitInstanceLoose,
+  mode: PlayerStateSchema["shuffleMode"],
+): void {
+  const next = mode === "SHUFFLE_ON" ? 1 : 0;
+  if ((music.shuffleMode ?? 0) !== next) music.shuffleMode = next;
+}
+
 export function playbackPositionMs(
   music: MusicKit.MusicKitInstanceLoose,
 ): number {

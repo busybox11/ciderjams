@@ -19,6 +19,7 @@ export interface SharePlayStore {
   syncFromServer: (
     serverData: SharePlaySyncInput,
   ) => ReturnType<SharePlayInhibitor["syncFromServer"]> | undefined;
+  bumpGuestActionSuppress: (durationMs?: number) => void;
   triggerMockSync: () => void;
 }
 
@@ -61,6 +62,10 @@ export const useSharePlayStore = defineStore(
       return inhibitor.value?.syncFromServer(serverData);
     }
 
+    function bumpGuestActionSuppress(durationMs?: number) {
+      inhibitor.value?.bumpGuestActionSuppress(durationMs);
+    }
+
     function triggerMockSync() {
       inhibitor.value?.triggerMockSync();
     }
@@ -72,6 +77,7 @@ export const useSharePlayStore = defineStore(
       activate,
       deactivate,
       syncFromServer,
+      bumpGuestActionSuppress,
       triggerMockSync,
     };
   },

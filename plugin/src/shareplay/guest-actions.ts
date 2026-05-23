@@ -47,6 +47,8 @@ export class SharePlayGuestActions {
   private lastEmittedPlaying: boolean | null = null;
   private seekTimer: ReturnType<typeof setTimeout> | null = null;
   private queueTimer: ReturnType<typeof setTimeout> | null = null;
+  private indexFlushScheduled = false;
+  private playbackFlushScheduled = false;
 
   constructor(
     private readonly music: MusicKit.MusicKitInstanceLoose,
@@ -82,6 +84,8 @@ export class SharePlayGuestActions {
     for (const dispose of this.internalEventCleanups) dispose();
     this.internalEventCleanups.length = 0;
     this.lastEmittedPlaying = null;
+    this.indexFlushScheduled = false;
+    this.playbackFlushScheduled = false;
     if (this.seekTimer) clearTimeout(this.seekTimer);
     if (this.queueTimer) clearTimeout(this.queueTimer);
     this.seekTimer = null;
@@ -129,7 +133,6 @@ export class SharePlayGuestActions {
     if (!INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS.includes(event)) return;
     if (this.shouldSuppress()) return;
     log.debug("guest queue hash change → queue.set");
-    // Slightly longer debounce so MusicKit queue rows catch up with Cider's store.
     this.sendQueueSoon(150);
   }
 
@@ -145,6 +148,62 @@ export class SharePlayGuestActions {
       }
     }
     return this.music.isPlaying;
+  }
+
+  private schedulePlaybackFlush(event: string, data?: unknown): void {
+    if (this.playbackFlushScheduled) return;
+    this.playbackFlushScheduled = true;
+    const playingHint =
+      event === "playbackStateDidChange"
+        ? this.isPlayingFromEvent(event, data)
+        : PLAY_EVENTS.has(event)
+          ? true
+          : PAUSE_EVENTS.has(event)
+            ? false
+            : null;
+
+    queueMicrotask(() => {
+      this.playbackFlushScheduled = false;
+      if (this.shouldSuppress()) {
+        this.lastEmittedPlaying = this.music.isPlaying;
+        return;
+      }
+      const playing = playingHint ?? this.music.isPlaying;
+      if (this.lastEmittedPlaying === playing) return;
+      this.lastEmittedPlaying = playing;
+      this.send({
+        event: playing ? "player.play" : "player.pause",
+        payload: {},
+      });
+    });
+  }
+
+  /** Emit one next/previous per index step after MK settles (handles burst skips). */
+  private scheduleIndexFlush(): void {
+    if (this.indexFlushScheduled) return;
+    this.indexFlushScheduled = true;
+    queueMicrotask(() => {
+      this.indexFlushScheduled = false;
+      if (this.shouldSuppress()) {
+        this.lastKnownIndex = this.music.nowPlayingItemIndex ?? 0;
+        return;
+      }
+
+      const nextIndex = this.music.nowPlayingItemIndex ?? 0;
+      const prevIndex = this.lastKnownIndex;
+      if (nextIndex === prevIndex) return;
+
+      const forward = nextIndex > prevIndex;
+      const steps = Math.abs(nextIndex - prevIndex);
+      this.lastKnownIndex = nextIndex;
+
+      for (let i = 0; i < steps; i++) {
+        this.send({
+          event: forward ? "player.next" : "player.previous",
+          payload: {},
+        });
+      }
+    });
   }
 
   private handleMusicKitEvent(event: string, data?: unknown): void {
@@ -170,18 +229,13 @@ export class SharePlayGuestActions {
       return;
     }
 
-    if (PLAY_EVENTS.has(event)) {
-      this.emitPlayPause(true);
-      return;
-    }
-
-    if (PAUSE_EVENTS.has(event)) {
-      this.emitPlayPause(false);
+    if (PLAY_EVENTS.has(event) || PAUSE_EVENTS.has(event)) {
+      this.schedulePlaybackFlush(event, data);
       return;
     }
 
     if (event === "playbackStateDidChange") {
-      this.emitPlayPause(this.isPlayingFromEvent(event, data));
+      this.schedulePlaybackFlush(event, data);
       return;
     }
 
@@ -197,7 +251,7 @@ export class SharePlayGuestActions {
         this.sendQueueSoon();
         return;
       }
-      this.sendIndexChange();
+      this.scheduleIndexFlush();
       return;
     }
 
@@ -220,26 +274,5 @@ export class SharePlayGuestActions {
         payload: { shuffleMode: mapShuffleMode(this.music.shuffleMode ?? 0) },
       });
     }
-  }
-
-  private emitPlayPause(playing: boolean): void {
-    if (this.lastEmittedPlaying === playing) return;
-    this.lastEmittedPlaying = playing;
-    this.send({
-      event: playing ? "player.play" : "player.pause",
-      payload: {},
-    });
-  }
-
-  private sendIndexChange(): void {
-    const nextIndex = this.music.nowPlayingItemIndex ?? 0;
-    const previousIndex = this.lastKnownIndex;
-    this.lastKnownIndex = nextIndex;
-
-    if (nextIndex === previousIndex) return;
-    this.send({
-      event: nextIndex > previousIndex ? "player.next" : "player.previous",
-      payload: {},
-    });
   }
 }

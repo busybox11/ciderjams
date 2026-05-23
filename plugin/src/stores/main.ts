@@ -15,6 +15,7 @@ import {
   MusicKitJamHostSyncSource,
 } from "../lib/jam/adapters/musickit";
 import { jamPlaybackToSharePlayPayload } from "../lib/jam/guest-shareplay";
+import { createJamServerSync } from "../lib/jam/server-sync";
 import {
   startJamHostSession,
   waitForWebSocketOpen,
@@ -40,6 +41,23 @@ export const useJamStore = defineStore("jam-store", () => {
   const pendingRoomJoin = ref(false);
 
   const isHost = () => jamHostSession.value !== null;
+
+  const serverSync = createJamServerSync({
+    getMusic: () =>
+      MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose | null,
+    getQueue: () => lastQueueState.value,
+    getPlayer: () => lastPlayerState.value,
+    isHost,
+    suppressHostPlayback: (ms) =>
+      jamHostSession.value?.suppressHostPlaybackSync(ms),
+    bumpGuestActionSuppress: (ms) =>
+      useSharePlayStore().bumpGuestActionSuppress(ms),
+    syncQueueFromServer: async (queue, player) => {
+      const share = useSharePlayStore();
+      if (!share.inhibitor) return;
+      await share.syncFromServer(jamPlaybackToSharePlayPayload(queue, player));
+    },
+  });
 
   function detachSocket() {
     socket.value?.close();
@@ -90,30 +108,6 @@ export const useJamStore = defineStore("jam-store", () => {
     currentJam.value = payload;
   }
 
-  let sharePlayFlushTimer: ReturnType<typeof setTimeout> | null = null;
-
-  async function flushSharePlayFromServerSnapshots() {
-    const q = lastQueueState.value;
-    const p = lastPlayerState.value;
-    if (!Array.isArray(q) || !p) return;
-
-    const share = useSharePlayStore();
-    if (!share.inhibitor) return;
-
-    if (isHost()) jamHostSession.value?.suppressHostPlaybackSync(5000);
-
-    const payload = jamPlaybackToSharePlayPayload(q, p);
-    await share.syncFromServer(payload);
-  }
-
-  function scheduleSharePlayFlush() {
-    if (sharePlayFlushTimer) clearTimeout(sharePlayFlushTimer);
-    sharePlayFlushTimer = setTimeout(() => {
-      sharePlayFlushTimer = null;
-      flushSharePlayFromServerSnapshots();
-    }, 0);
-  }
-
   function onSocketMessage(data: unknown) {
     const parsed = outboundWsMessageSchema.safeParse(data);
     if (!parsed.success) {
@@ -142,13 +136,15 @@ export const useJamStore = defineStore("jam-store", () => {
       case "room.state":
         applyRoomState(msg.payload as RoomStateSchema);
         break;
-      case "queue.state":
+      case "queue.state": {
+        const prev = lastQueueState.value;
         lastQueueState.value = msg.payload as QueueStateSchema;
-        scheduleSharePlayFlush();
+        serverSync.noteQueueMessage(lastQueueState.value, prev);
         break;
+      }
       case "player.state":
         lastPlayerState.value = msg.payload as PlayerStateSchema;
-        scheduleSharePlayFlush();
+        serverSync.notePlayerMessage();
         break;
       default:
         break;
@@ -248,6 +244,7 @@ export const useJamStore = defineStore("jam-store", () => {
     currentJam.value = null;
     lastQueueState.value = null;
     lastPlayerState.value = null;
+    serverSync.reset();
     useSharePlayStore().deactivate();
   }
 
