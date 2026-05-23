@@ -2,7 +2,6 @@ import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
 import { defineConfig } from "vite";
 import cssInjectedByJsPlugin from "vite-plugin-css-injected-by-js";
-import tsconfigPaths from "vite-tsconfig-paths";
 import { stringify } from "yaml";
 
 const packageJson = require("./package.json");
@@ -11,7 +10,6 @@ const config = require("./src/plugin.config");
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    tsconfigPaths(),
     cssInjectedByJsPlugin(),
     AutoImport({
       imports: ["vue"],
@@ -30,7 +28,6 @@ export default defineConfig({
     {
       async buildStart() {
         console.log("Building plugin...");
-        // create a plugin.json in assets
         this.emitFile({
           fileName: "plugin.yml",
           type: "asset",

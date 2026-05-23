@@ -2,6 +2,16 @@
   "name": "@ciderjams/plugin",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/main.ts",
+    "./api/*": "./src/api/*",
+    "./cider/*": "./src/cider/*",
+    "./entry/*": "./src/entry/*",
+    "./musickit/*": "./src/musickit/*",
+    "./playback/*": "./src/playback/*",
+    "./session/*": "./src/session/*",
+    "./ui/*": "./src/ui/*"
+  },
   "plugin": {
     "ce_prefix": "ciderjams",
     "identifier": "net.busybox11.ciderjams"
