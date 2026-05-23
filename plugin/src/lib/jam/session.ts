@@ -13,12 +13,12 @@ import type { JamHostPlayerAdapter } from "./player-adapter";
 export interface JamHostSyncSource {
   start(hooks: SharePlayHostAdapterHooks): void;
   stop(): void;
-  suppressOutgoingSync?(durationMs?: number): void;
+  suppressOutgoingPlaybackSync?(durationMs?: number): void;
 }
 
 export type JamHostSessionHandle = {
   stop: () => void;
-  suppressHostSync: (durationMs?: number) => void;
+  suppressHostPlaybackSync: (durationMs?: number) => void;
 };
 
 export function waitForWebSocketOpen(client: CiderSyncSocket): Promise<void> {
@@ -177,13 +177,8 @@ export function startJamHostSession(args: {
     });
   };
 
-  const pushHostStateFromAdapter = () => {
-    pushQueueFromAdapter();
-    pushPlaybackFromAdapter();
-  };
-
   syncSource.start({
-    onSyncQueue: pushHostStateFromAdapter,
+    onSyncQueue: pushQueueFromAdapter,
     onSyncPlayback: pushPlaybackFromAdapter,
   });
 
@@ -199,8 +194,8 @@ export function startJamHostSession(args: {
       lastSentQueueCatalogIds = null;
       syncSource.stop();
     },
-    suppressHostSync: (durationMs) => {
-      syncSource.suppressOutgoingSync?.(durationMs);
+    suppressHostPlaybackSync: (durationMs) => {
+      syncSource.suppressOutgoingPlaybackSync?.(durationMs);
     },
   };
 }

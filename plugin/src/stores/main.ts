@@ -100,7 +100,7 @@ export const useJamStore = defineStore("jam-store", () => {
     const share = useSharePlayStore();
     if (!share.inhibitor) return;
 
-    if (isHost()) jamHostSession.value?.suppressHostSync(5000);
+    if (isHost()) jamHostSession.value?.suppressHostPlaybackSync(5000);
 
     const payload = jamPlaybackToSharePlayPayload(q, p);
     await share.syncFromServer(payload);
