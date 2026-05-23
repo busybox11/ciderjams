@@ -7,6 +7,13 @@
       "request": "attach",
       "port": 8315,
       "webRoot": "${workspaceFolder}/plugin/src"
+    },
+    {
+      "type": "node",
+      "name": "Debug server",
+      "request": "attach",
+      "port": 6499,
+      "cwd": "${workspaceFolder}/server"
     }
   ]
 }

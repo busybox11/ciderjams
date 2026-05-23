@@ -20,6 +20,7 @@ import { log } from "./lib/logger";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
 
+import { internalPluginEvents, InternalPluginSubscribeEvents } from "./lib/events";
 import PluginConfig from "./plugin.config";
 import { useSharePlayStore } from "./stores/shareplay";
 
@@ -85,7 +86,6 @@ registerInjector({
     host.appendChild(
       document.createElement(customElementName("menu-indicator")),
     );
-    host.style.marginRight = "1rem";
   },
 });
 
@@ -145,6 +145,17 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
 
       const cider = useCider();
       log.log("Cider", cider);
+
+      let lastQueueHash: string | null = null;
+      const mkStore = cider.musicKitStore;
+      mkStore.$subscribe((_m: any, state: any) => {
+        const newQueueHash = state.queueHash;
+        if (newQueueHash !== lastQueueHash) {
+          lastQueueHash = newQueueHash;
+          log.log("queueHash changed", newQueueHash);
+          internalPluginEvents.dispatchEvent(new Event(InternalPluginSubscribeEvents.QUEUE_HASH_DID_CHANGE));
+        }
+      });
 
       const musickit = useMusicKit();
       log.log("MusicKit", musickit);

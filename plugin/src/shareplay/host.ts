@@ -14,7 +14,10 @@ import { createLogger } from "@ciderjams/proto";
 const log = createLogger("plugin", "shareplay/host");
 
 /** Item list changes only; index moves use PLAYBACK_SYNC_EVENTS → player.host.sync */
-export const QUEUE_SYNC_EVENTS: string[] = ["queueItemsDidChange"];
+export const QUEUE_SYNC_EVENTS: string[] = [
+  "queueItemsDidChange",
+  "queuePositionDidChange",
+];
 
 export const PLAYBACK_TIME_EVENTS: string[] = ["playbackTimeDidChange"];
 
@@ -58,43 +61,39 @@ export class SharePlayHost implements ISharePlayHostAdapter {
   private playbackSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private hostStateSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private hooks: SharePlayHostAdapterHooks = {};
-  private suppressOutgoingSyncUntil = 0;
+  private suppressOutgoingPlaybackSyncUntil = 0;
 
   constructor(
     private readonly music: MusicKit.MusicKitInstanceLoose,
     private readonly options: SharePlayHostOptions = {},
   ) {}
 
-  /** skip host pushes while applying server-driven play/pause locally */
-  public suppressOutgoingSync(durationMs = 750): void {
-    this.suppressOutgoingSyncUntil = Date.now() + durationMs;
-    if (this.hostStateSyncTimer) clearTimeout(this.hostStateSyncTimer);
-    this.hostStateSyncTimer = null;
+  /** skip playback pushes while applying server-driven play/pause locally */
+  public suppressOutgoingPlaybackSync(durationMs = 750): void {
+    this.suppressOutgoingPlaybackSyncUntil = Date.now() + durationMs;
     if (this.playbackSyncTimer) clearTimeout(this.playbackSyncTimer);
     this.playbackSyncTimer = null;
   }
 
-  private isSuppressingOutgoingSync(): boolean {
-    return Date.now() < this.suppressOutgoingSyncUntil;
+  private isSuppressingOutgoingPlaybackSync(): boolean {
+    return Date.now() < this.suppressOutgoingPlaybackSyncUntil;
   }
 
-  /** debounced host push */
+  /** debounced queue push — never suppressed so reorders always reach the server */
   private triggerHostStateSync() {
-    if (this.isSuppressingOutgoingSync()) return;
     if (this.hostStateSyncTimer) clearTimeout(this.hostStateSyncTimer);
     this.hostStateSyncTimer = setTimeout(() => {
       this.hostStateSyncTimer = null;
-      if (this.isSuppressingOutgoingSync()) return;
       this.hooks.onSyncQueue?.() ?? this.options.onSyncQueue?.();
     }, 50);
   }
 
   private triggerPlaybackSync() {
-    if (this.isSuppressingOutgoingSync()) return;
+    if (this.isSuppressingOutgoingPlaybackSync()) return;
     if (this.playbackSyncTimer) clearTimeout(this.playbackSyncTimer);
     this.playbackSyncTimer = setTimeout(() => {
       this.playbackSyncTimer = null;
-      if (this.isSuppressingOutgoingSync()) return;
+      if (this.isSuppressingOutgoingPlaybackSync()) return;
       this.hooks.onSyncPlayback?.() ?? this.options.onSyncPlayback?.();
       this.lastPlaybackSync = Date.now();
     }, 50);
@@ -113,8 +112,8 @@ export class SharePlayHost implements ISharePlayHostAdapter {
           log.debug("triggerHostStateSync (queue)");
           this.triggerHostStateSync();
         } else if (PLAYBACK_SYNC_EVENTS.includes(event)) {
-          log.debug("triggerHostStateSync (playback)");
-          this.triggerHostStateSync();
+          log.debug("triggerPlaybackSync");
+          this.triggerPlaybackSync();
         } else if (PLAYBACK_TIME_EVENTS.includes(event)) {
           const now = Date.now();
           if (now - this.lastPlaybackSync >= 10000) {
