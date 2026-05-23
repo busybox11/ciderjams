@@ -8,13 +8,8 @@ import type {
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
-import { outboundWsMessageSchema } from "@ciderjams/proto";
-
-import { useMusicKit } from "@ciderapp/pluginkit";
-
-import { type CiderSyncSocket, ciderSyncSocket } from "../api/client";
-import { log } from "../lib/logger";
-import { jamErrorMessage, showJamAlert, showJamMemberEvent } from "../lib/notifications";
+import { type CiderSyncSocket } from "../api/client";
+import { jamErrorMessage, showJamAlert } from "../ui/notifications";
 import { useSharePlayStore } from "../playback/store";
 import { JamGuestActions } from "./guest/actions";
 import {
@@ -24,8 +19,10 @@ import {
 import {
   type JamHostSessionHandle,
   startJamHostSession,
-  waitForWebSocketOpen,
 } from "./host/session";
+import { fetchJamIdentity } from "./identity";
+import { hostLeftSession, notifyParticipantChanges } from "./room-lifecycle";
+import { connectJamSocket } from "./socket";
 import { createJamInboundSync, jamPlaybackToSharePlayPayload } from "./sync/inbound";
 
 export const useJamStore = defineStore("jam-store", () => {
@@ -59,62 +56,41 @@ export const useJamStore = defineStore("jam-store", () => {
     },
   });
 
-  // --- socket ---
   function detachSocket() {
     socket.value?.close();
     socket.value = null;
+  }
+
+  function onSocketError(rawMessage: string) {
+    const { message, title } = jamErrorMessage(rawMessage);
+    if (pendingRoomJoin.value && !currentJam.value) {
+      pendingRoomJoin.value = false;
+      abortPendingJoin();
+      showJamAlert(message, title);
+      return;
+    }
+    if (currentJam.value) showJamAlert(message, title);
   }
 
   async function getConnectedSocket(): Promise<CiderSyncSocket> {
     if (!identity.value) throw new Error("You are not logged in");
 
     detachSocket();
-    const client = ciderSyncSocket(identity.value);
-    socket.value = client;
-    client.subscribe((ev) => onSocketMessage(ev.data));
-    await waitForWebSocketOpen(client);
-    return client;
-  }
-
-  function onSocketMessage(data: unknown) {
-    const parsed = outboundWsMessageSchema.safeParse(data);
-    if (!parsed.success) {
-      log.warn("Jam socket: bad inbound frame", parsed.error.issues.slice(0, 3));
-      return;
-    }
-    log.debug("onSocketMessage", parsed.data);
-
-    const msg = parsed.data;
-    if ("type" in msg) {
-      log.error("Jam socket error:", msg.message);
-      const { message, title } = jamErrorMessage(msg.message);
-      if (pendingRoomJoin.value && !currentJam.value) {
-        pendingRoomJoin.value = false;
-        abortPendingJoin();
-        showJamAlert(message, title);
-        return;
-      }
-      if (currentJam.value) showJamAlert(message, title);
-      return;
-    }
-
-    switch (msg.event) {
-      case "room.state":
-        applyRoomState(msg.payload as RoomStateSchema);
-        break;
-      case "queue.state": {
+    const client = await connectJamSocket(identity.value, {
+      onRoomState: applyRoomState,
+      onQueueState(payload) {
         const prev = lastQueueState.value;
-        lastQueueState.value = msg.payload as QueueStateSchema;
+        lastQueueState.value = payload;
         inboundSync.onQueueState(lastQueueState.value, prev);
-        break;
-      }
-      case "player.state":
-        lastPlayerState.value = msg.payload as PlayerStateSchema;
+      },
+      onPlayerState(payload) {
+        lastPlayerState.value = payload;
         inboundSync.onPlayerState();
-        break;
-      default:
-        break;
-    }
+      },
+      onSocketError,
+    });
+    socket.value = client;
+    return client;
   }
 
   function applyRoomState(payload: RoomStateSchema) {
@@ -122,43 +98,27 @@ export const useJamStore = defineStore("jam-store", () => {
     pendingRoomJoin.value = false;
 
     if (prev) {
-      const hostGone = !isHost() && !payload.participants.some((p) => p.userId === prev.hostUserId);
-      if (hostGone) {
+      if (!isHost() && hostLeftSession(prev, payload)) {
         showJamAlert("The host ended the listening session.", "Session ended");
         leaveJam();
         return;
       }
-      notifyParticipantChanges(prev, payload);
+      notifyParticipantChanges(prev, payload, identity.value?.userId);
     }
 
     currentJam.value = payload;
   }
 
-  function notifyParticipantChanges(prev: RoomStateSchema, next: RoomStateSchema) {
-    const me = identity.value?.userId;
-    const prevIds = new Set(prev.participants.map((p) => p.userId));
-    const nextIds = new Set(next.participants.map((p) => p.userId));
-
-    for (const p of next.participants) {
-      if (!prevIds.has(p.userId) && p.userId !== me) {
-        showJamMemberEvent(`${p.name} joined the session.`, "Member joined");
-      }
-    }
-
-    for (const p of prev.participants) {
-      if (!nextIds.has(p.userId) && p.userId !== me && p.userId !== prev.hostUserId) {
-        showJamMemberEvent(`${p.name} left the session.`, "Member left");
-      }
+  async function ensureIdentity() {
+    if (identity.value) return;
+    identity.value = await fetchJamIdentity();
+    if (!identity.value) {
+      throw new Error("Could not load Apple Music profile");
     }
   }
 
   async function createJam() {
-    if (!identity.value) {
-      await refreshIdentity();
-      if (!identity.value) {
-        throw new Error("Could not load Apple Music profile");
-      }
-    }
+    await ensureIdentity();
 
     useSharePlayStore().activate();
 
@@ -178,12 +138,7 @@ export const useJamStore = defineStore("jam-store", () => {
     const code = roomCode.trim().toUpperCase();
     if (!code) throw new Error("Enter a session code");
 
-    if (!identity.value) {
-      await refreshIdentity();
-      if (!identity.value) {
-        throw new Error("Could not load Apple Music profile");
-      }
-    }
+    await ensureIdentity();
 
     useSharePlayStore().activate();
 
@@ -229,47 +184,9 @@ export const useJamStore = defineStore("jam-store", () => {
     useSharePlayStore().deactivate();
   }
 
-  async function refreshIdentity() {
-    try {
-      const musicKit = useMusicKit();
-      const result = await musicKit.api.personalSocialProfile();
-      const handle = result.attributes.handle;
-      const resource = result as { id?: string };
-
-      // TODO: remove this - only for multi platform debug
-      const isLinux = window.navigator.userAgent.toLowerCase().includes("linux");
-
-      if (isLinux) {
-        identity.value = {
-          userId:
-            typeof resource.id === "string" && resource.id.length > 0
-              ? `${resource.id}-linux`
-              : `handle:${handle}-linux`,
-          name: `${result.attributes.name} (Linux)`,
-          handle: `${handle}-linux`,
-          avatar: "https://pbs.twimg.com/profile_images/1994727967587528704/p5QVaU0q_400x400.jpg",
-        };
-        return;
-      }
-
-      identity.value = {
-        userId:
-          typeof resource.id === "string" && resource.id.length > 0
-            ? resource.id
-            : `handle:${handle}`,
-        name: result.attributes.name,
-        handle,
-        avatar: MusicKit.formatArtworkURL(result.attributes.artwork, 64, 64).replace(
-          "{c}",
-          ".webp",
-        ),
-      };
-    } catch (error) {
-      log.error("Failed to fetch identity:", error);
-    }
-  }
-
-  void refreshIdentity();
+  void fetchJamIdentity().then((participant) => {
+    identity.value = participant;
+  });
 
   return {
     currentJam,
