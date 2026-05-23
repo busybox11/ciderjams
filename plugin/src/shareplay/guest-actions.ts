@@ -6,9 +6,17 @@ import {
 
 import type { CiderSyncSocket } from "../lib/api";
 import {
+  INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS,
+  INTERNAL_PLUGIN_SUBSCRIBE_EVENTS,
+  internalPluginEvents,
+} from "../lib/events";
+import {
+  isSameCatalogIdOrder,
+  jamQueueCatalogIds,
   makeQueuePayload,
   mapRepeatMode,
   mapShuffleMode,
+  musicKitQueueCatalogIds,
   playbackPositionMs,
 } from "../lib/musickit/payloads";
 import { subscribeMusicKitEvent } from "./musickit-bridge";
@@ -34,6 +42,7 @@ const GUEST_MUSICKIT_EVENTS = [
 
 export class SharePlayGuestActions {
   private readonly eventCleanups: (() => void)[] = [];
+  private readonly internalEventCleanups: (() => void)[] = [];
   private lastKnownIndex: number;
   private lastEmittedPlaying: boolean | null = null;
   private seekTimer: ReturnType<typeof setTimeout> | null = null;
@@ -57,11 +66,21 @@ export class SharePlayGuestActions {
         ),
       );
     }
+
+    for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
+      const handler = () => this.handleInternalPluginEvent(event);
+      internalPluginEvents.addEventListener(event, handler);
+      this.internalEventCleanups.push(() =>
+        internalPluginEvents.removeEventListener(event, handler),
+      );
+    }
   }
 
   stop(): void {
     for (const dispose of this.eventCleanups) dispose();
     this.eventCleanups.length = 0;
+    for (const dispose of this.internalEventCleanups) dispose();
+    this.internalEventCleanups.length = 0;
     this.lastEmittedPlaying = null;
     if (this.seekTimer) clearTimeout(this.seekTimer);
     if (this.queueTimer) clearTimeout(this.queueTimer);
@@ -88,11 +107,12 @@ export class SharePlayGuestActions {
     }, 100);
   }
 
-  private sendQueueSoon(): void {
+  private sendQueueSoon(delayMs = 100): void {
     if (this.shouldSuppress()) return;
     if (this.queueTimer) clearTimeout(this.queueTimer);
     this.queueTimer = setTimeout(() => {
       this.queueTimer = null;
+      if (this.shouldSuppress()) return;
       try {
         this.send({
           event: "queue.set",
@@ -101,7 +121,16 @@ export class SharePlayGuestActions {
       } catch (error) {
         log.warn("guest queue.set failed", error);
       }
-    }, 100);
+    }, delayMs);
+  }
+
+  /** Cider drag-reorder updates queueHash without MusicKit queue lifecycle events. */
+  private handleInternalPluginEvent(event: string): void {
+    if (!INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS.includes(event)) return;
+    if (this.shouldSuppress()) return;
+    log.debug("guest queue hash change → queue.set");
+    // Slightly longer debounce so MusicKit queue rows catch up with Cider's store.
+    this.sendQueueSoon(150);
   }
 
   private isPlayingFromEvent(event: string, data: unknown): boolean {
@@ -162,6 +191,12 @@ export class SharePlayGuestActions {
     }
 
     if (event === "queuePositionDidChange") {
+      const mkOrder = musicKitQueueCatalogIds(this.music);
+      const jamOrder = jamQueueCatalogIds(this.getLastJamQueue());
+      if (!isSameCatalogIdOrder(mkOrder, jamOrder)) {
+        this.sendQueueSoon();
+        return;
+      }
       this.sendIndexChange();
       return;
     }

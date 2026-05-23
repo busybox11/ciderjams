@@ -6,6 +6,7 @@ import {
   roomCreatePayload,
   type PlayerStateSchema,
   type QueueSetPayload,
+  type QueueStateSchema,
   type RoomCreatePayload,
   type SchemaInput,
 } from "@ciderjams/proto";
@@ -63,6 +64,52 @@ export function getItemCatalogId(item: MusicKit.MediaItem): string {
   return item.attributes?.playParams?.catalogId ?? item.id;
 }
 
+export function musicKitQueueCatalogIds(
+  music: MusicKit.MusicKitInstanceLoose,
+): string[] {
+  return music.queue._queueItems.map((row) => getItemCatalogId(row.item));
+}
+
+export function jamQueueCatalogIds(
+  jamQueue: QueueSetPayload | QueueStateSchema | null | undefined,
+): string[] {
+  return jamQueue?.map((e) => e.itemCatalogId) ?? [];
+}
+
+export function isSameCatalogIdOrder(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+type JamQueueMetaEntry = {
+  itemCatalogId: string;
+  queueEntryId?: string;
+  ownerUserId?: string;
+};
+
+/** Match MK row order to jam entries; consumes each catalogId once (reorder-safe). */
+function takeJamEntryForCatalogId(
+  pools: Map<string, JamQueueMetaEntry[]>,
+  itemCatalogId: string,
+): JamQueueMetaEntry | undefined {
+  const pool = pools.get(itemCatalogId);
+  if (!pool || pool.length === 0) return undefined;
+  return pool.shift();
+}
+
+function buildJamEntryPools(
+  jamQueue: readonly JamQueueMetaEntry[] | null | undefined,
+): Map<string, JamQueueMetaEntry[]> {
+  const pools = new Map<string, JamQueueMetaEntry[]>();
+  if (!jamQueue) return pools;
+
+  for (const entry of jamQueue) {
+    const list = pools.get(entry.itemCatalogId) ?? [];
+    list.push(entry);
+    pools.set(entry.itemCatalogId, list);
+  }
+  return pools;
+}
+
 const roomCreateQueueSchema = roomCreatePayload.shape.playbackState.shape.queue;
 export function makeQueuePayload(
   music: MusicKit.MusicKitInstanceLoose,
@@ -93,17 +140,15 @@ export function makeQueuePayload(
     );
   }
 
+  const pools = buildJamEntryPools(jamQueue);
   const queueItems = music.queue._queueItems.map((item) => {
     const itemCatalogId = getItemCatalogId(item.item);
-
-    const jamItem = jamQueue?.find((e) => e.itemCatalogId === itemCatalogId);
+    const jamItem = takeJamEntryForCatalogId(pools, itemCatalogId);
 
     return {
       itemCatalogId,
-      ...(jamItem && {
-        queueEntryId: jamItem.queueEntryId,
-        ownerUserId: jamItem.ownerUserId,
-      }),
+      ...(jamItem?.queueEntryId && { queueEntryId: jamItem.queueEntryId }),
+      ...(jamItem?.ownerUserId && { ownerUserId: jamItem.ownerUserId }),
     };
   }) satisfies SchemaInput<typeof queueSetPayload>;
 
