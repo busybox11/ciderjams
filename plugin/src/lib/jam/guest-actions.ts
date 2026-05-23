@@ -4,12 +4,12 @@ import {
   type QueueStateSchema,
 } from "@ciderjams/proto";
 
-import type { CiderSyncSocket } from "../lib/api";
+import type { CiderSyncSocket } from "../api";
 import {
   INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS,
   INTERNAL_PLUGIN_SUBSCRIBE_EVENTS,
   internalPluginEvents,
-} from "../lib/events";
+} from "../events";
 import {
   isSameCatalogIdOrder,
   jamQueueCatalogIds,
@@ -18,16 +18,16 @@ import {
   mapShuffleMode,
   musicKitQueueCatalogIds,
   playbackPositionMs,
-} from "../lib/musickit/payloads";
-import { subscribeMusicKitEvent } from "./musickit-bridge";
+} from "../musickit/payloads";
+import { subscribeMusicKitEvent } from "../../shareplay/musickit-bridge";
 
-const log = createLogger("plugin", "shareplay/guest-actions");
+const log = createLogger("plugin", "jam/guest-actions");
 
 const PLAY_EVENTS = new Set(["playbackPlay"]);
 const PAUSE_EVENTS = new Set(["playbackPause", "playbackStop"]);
 const SEEK_EVENTS = new Set(["playbackSeek", "playbackScrub"]);
 
-const GUEST_MUSICKIT_EVENTS = [
+const MK_EVENTS = [
   "playbackPlay",
   "playbackPause",
   "playbackStop",
@@ -40,9 +40,10 @@ const GUEST_MUSICKIT_EVENTS = [
   "shuffleModeDidChange",
 ] as const;
 
-export class SharePlayGuestActions {
-  private readonly eventCleanups: (() => void)[] = [];
-  private readonly internalEventCleanups: (() => void)[] = [];
+/** Maps local MusicKit controls → jam room WS commands (guest / non-host). */
+export class JamGuestActions {
+  private readonly mkCleanups: (() => void)[] = [];
+  private readonly pluginCleanups: (() => void)[] = [];
   private lastKnownIndex: number;
   private lastEmittedPlaying: boolean | null = null;
   private seekTimer: ReturnType<typeof setTimeout> | null = null;
@@ -54,35 +55,36 @@ export class SharePlayGuestActions {
     private readonly music: MusicKit.MusicKitInstanceLoose,
     private readonly socket: CiderSyncSocket,
     private readonly shouldSuppress: () => boolean,
-    private readonly getLastJamQueue: () => QueueStateSchema | null,
+    private readonly getJamQueue: () => QueueStateSchema | null,
   ) {
     this.lastKnownIndex = music.nowPlayingItemIndex ?? 0;
   }
 
   start(): void {
     this.lastEmittedPlaying = this.music.isPlaying;
-    for (const event of GUEST_MUSICKIT_EVENTS) {
-      this.eventCleanups.push(
+
+    for (const event of MK_EVENTS) {
+      this.mkCleanups.push(
         subscribeMusicKitEvent(this.music, event, (data) =>
-          this.handleMusicKitEvent(event, data),
+          this.onMusicKitEvent(event, data),
         ),
       );
     }
 
     for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
-      const handler = () => this.handleInternalPluginEvent(event);
+      const handler = () => this.onPluginQueueEvent(event);
       internalPluginEvents.addEventListener(event, handler);
-      this.internalEventCleanups.push(() =>
+      this.pluginCleanups.push(() =>
         internalPluginEvents.removeEventListener(event, handler),
       );
     }
   }
 
   stop(): void {
-    for (const dispose of this.eventCleanups) dispose();
-    this.eventCleanups.length = 0;
-    for (const dispose of this.internalEventCleanups) dispose();
-    this.internalEventCleanups.length = 0;
+    for (const dispose of this.mkCleanups) dispose();
+    this.mkCleanups.length = 0;
+    for (const dispose of this.pluginCleanups) dispose();
+    this.pluginCleanups.length = 0;
     this.lastEmittedPlaying = null;
     this.indexFlushScheduled = false;
     this.playbackFlushScheduled = false;
@@ -92,10 +94,12 @@ export class SharePlayGuestActions {
     this.queueTimer = null;
   }
 
+  // --- WS outbound ---
+
   private send(message: ClientWireMessage): void {
     if (this.shouldSuppress()) return;
     if (this.socket.ws.readyState !== WebSocket.OPEN) return;
-    log.debug("sending guest action", message);
+    log.debug("guest → room", message.event);
     this.socket.send(message);
   }
 
@@ -120,7 +124,7 @@ export class SharePlayGuestActions {
       try {
         this.send({
           event: "queue.set",
-          payload: makeQueuePayload(this.music, this.getLastJamQueue()),
+          payload: makeQueuePayload(this.music, this.getJamQueue()),
         });
       } catch (error) {
         log.warn("guest queue.set failed", error);
@@ -128,15 +132,9 @@ export class SharePlayGuestActions {
     }, delayMs);
   }
 
-  /** Cider drag-reorder updates queueHash without MusicKit queue lifecycle events. */
-  private handleInternalPluginEvent(event: string): void {
-    if (!INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS.includes(event)) return;
-    if (this.shouldSuppress()) return;
-    log.debug("guest queue hash change → queue.set");
-    this.sendQueueSoon(150);
-  }
+  // --- coalesced MK → room (one microtask per burst) ---
 
-  private isPlayingFromEvent(event: string, data: unknown): boolean {
+  private playingFromEvent(event: string, data: unknown): boolean {
     if (event === "playbackStateDidChange" && data && typeof data === "object") {
       const state = (data as { state?: number }).state;
       if (state === MusicKit.PlaybackStates.playing) return true;
@@ -155,7 +153,7 @@ export class SharePlayGuestActions {
     this.playbackFlushScheduled = true;
     const playingHint =
       event === "playbackStateDidChange"
-        ? this.isPlayingFromEvent(event, data)
+        ? this.playingFromEvent(event, data)
         : PLAY_EVENTS.has(event)
           ? true
           : PAUSE_EVENTS.has(event)
@@ -178,7 +176,6 @@ export class SharePlayGuestActions {
     });
   }
 
-  /** Emit one next/previous per index step after MK settles (handles burst skips). */
   private scheduleIndexFlush(): void {
     if (this.indexFlushScheduled) return;
     this.indexFlushScheduled = true;
@@ -206,7 +203,15 @@ export class SharePlayGuestActions {
     });
   }
 
-  private handleMusicKitEvent(event: string, data?: unknown): void {
+  // --- event handlers ---
+
+  private onPluginQueueEvent(event: string): void {
+    if (!INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS.includes(event)) return;
+    if (this.shouldSuppress()) return;
+    this.sendQueueSoon(150);
+  }
+
+  private onMusicKitEvent(event: string, data?: unknown): void {
     if (this.shouldSuppress()) {
       if (
         event === "playbackStateDidChange" ||
@@ -229,12 +234,11 @@ export class SharePlayGuestActions {
       return;
     }
 
-    if (PLAY_EVENTS.has(event) || PAUSE_EVENTS.has(event)) {
-      this.schedulePlaybackFlush(event, data);
-      return;
-    }
-
-    if (event === "playbackStateDidChange") {
+    if (
+      PLAY_EVENTS.has(event) ||
+      PAUSE_EVENTS.has(event) ||
+      event === "playbackStateDidChange"
+    ) {
       this.schedulePlaybackFlush(event, data);
       return;
     }
@@ -246,7 +250,7 @@ export class SharePlayGuestActions {
 
     if (event === "queuePositionDidChange") {
       const mkOrder = musicKitQueueCatalogIds(this.music);
-      const jamOrder = jamQueueCatalogIds(this.getLastJamQueue());
+      const jamOrder = jamQueueCatalogIds(this.getJamQueue());
       if (!isSameCatalogIdOrder(mkOrder, jamOrder)) {
         this.sendQueueSoon();
         return;
@@ -276,3 +280,6 @@ export class SharePlayGuestActions {
     }
   }
 }
+
+/** @deprecated use {@link JamGuestActions} */
+export const SharePlayGuestActions = JamGuestActions;

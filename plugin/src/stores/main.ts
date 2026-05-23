@@ -14,8 +14,11 @@ import {
   MusicKitJamHostPlayerAdapter,
   MusicKitJamHostSyncSource,
 } from "../lib/jam/adapters/musickit";
-import { jamPlaybackToSharePlayPayload } from "../lib/jam/guest-shareplay";
-import { createJamServerSync } from "../lib/jam/server-sync";
+import {
+  createJamInboundSync,
+  jamPlaybackToSharePlayPayload,
+} from "../lib/jam/from-server";
+import { JamGuestActions } from "../lib/jam/guest-actions";
 import {
   startJamHostSession,
   waitForWebSocketOpen,
@@ -27,7 +30,6 @@ import {
   showJamAlert,
   showJamMemberEvent,
 } from "../lib/notifications";
-import { SharePlayGuestActions } from "../shareplay/guest-actions";
 import { useSharePlayStore } from "./shareplay";
 
 export const useJamStore = defineStore("jam-store", () => {
@@ -37,31 +39,109 @@ export const useJamStore = defineStore("jam-store", () => {
   const lastQueueState = shallowRef<QueueStateSchema | null>(null);
   const lastPlayerState = shallowRef<PlayerStateSchema | null>(null);
   const jamHostSession = shallowRef<JamHostSessionHandle | null>(null);
-  const guestActions = shallowRef<SharePlayGuestActions | null>(null);
+  const guestActions = shallowRef<JamGuestActions | null>(null);
   const pendingRoomJoin = ref(false);
 
   const isHost = () => jamHostSession.value !== null;
 
-  const serverSync = createJamServerSync({
-    getMusic: () =>
+  const inboundSync = createJamInboundSync({
+    getMusicKit: () =>
       MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose | null,
     getQueue: () => lastQueueState.value,
     getPlayer: () => lastPlayerState.value,
     isHost,
-    suppressHostPlayback: (ms) =>
-      jamHostSession.value?.suppressHostPlaybackSync(ms),
-    bumpGuestActionSuppress: (ms) =>
-      useSharePlayStore().bumpGuestActionSuppress(ms),
-    syncQueueFromServer: async (queue, player) => {
+    suppressLocalSync(ms) {
       const share = useSharePlayStore();
-      if (!share.inhibitor) return;
-      await share.syncFromServer(jamPlaybackToSharePlayPayload(queue, player));
+      share.bumpGuestActionSuppress(ms);
+      if (isHost()) jamHostSession.value?.suppressHostPlaybackSync(ms);
+    },
+    applyQueueViaSharePlay(queue, player) {
+      const share = useSharePlayStore();
+      if (!share.inhibitor) return Promise.resolve();
+      return share.syncFromServer(
+        jamPlaybackToSharePlayPayload(queue, player),
+      )!;
     },
   });
 
+  // --- socket ---
   function detachSocket() {
     socket.value?.close();
     socket.value = null;
+  }
+
+  async function getConnectedSocket(): Promise<CiderSyncSocket> {
+    if (!identity.value) throw new Error("You are not logged in");
+
+    detachSocket();
+    const client = ciderSyncSocket(identity.value);
+    socket.value = client;
+    client.subscribe((ev) => onSocketMessage(ev.data));
+    await waitForWebSocketOpen(client);
+    return client;
+  }
+
+  function onSocketMessage(data: unknown) {
+    const parsed = outboundWsMessageSchema.safeParse(data);
+    if (!parsed.success) {
+      log.warn(
+        "Jam socket: bad inbound frame",
+        parsed.error.issues.slice(0, 3),
+      );
+      return;
+    }
+    log.debug("onSocketMessage", parsed.data);
+
+    const msg = parsed.data;
+    if ("type" in msg) {
+      log.error("Jam socket error:", msg.message);
+      const { message, title } = jamErrorMessage(msg.message);
+      if (pendingRoomJoin.value && !currentJam.value) {
+        pendingRoomJoin.value = false;
+        abortPendingJoin();
+        showJamAlert(message, title);
+        return;
+      }
+      if (currentJam.value) showJamAlert(message, title);
+      return;
+    }
+
+    switch (msg.event) {
+      case "room.state":
+        applyRoomState(msg.payload as RoomStateSchema);
+        break;
+      case "queue.state": {
+        const prev = lastQueueState.value;
+        lastQueueState.value = msg.payload as QueueStateSchema;
+        inboundSync.onQueueState(lastQueueState.value, prev);
+        break;
+      }
+      case "player.state":
+        lastPlayerState.value = msg.payload as PlayerStateSchema;
+        inboundSync.onPlayerState();
+        break;
+      default:
+        break;
+    }
+  }
+
+  function applyRoomState(payload: RoomStateSchema) {
+    const prev = currentJam.value;
+    pendingRoomJoin.value = false;
+
+    if (prev) {
+      const hostGone =
+        !isHost() &&
+        !payload.participants.some((p) => p.userId === prev.hostUserId);
+      if (hostGone) {
+        showJamAlert("The host ended the listening session.", "Session ended");
+        leaveJam();
+        return;
+      }
+      notifyParticipantChanges(prev, payload);
+    }
+
+    currentJam.value = payload;
   }
 
   function notifyParticipantChanges(
@@ -89,83 +169,6 @@ export const useJamStore = defineStore("jam-store", () => {
     }
   }
 
-  function applyRoomState(payload: RoomStateSchema) {
-    const prev = currentJam.value;
-    pendingRoomJoin.value = false;
-
-    if (prev) {
-      const hostGone =
-        !isHost() &&
-        !payload.participants.some((p) => p.userId === prev.hostUserId);
-      if (hostGone) {
-        showJamAlert("The host ended the listening session.", "Session ended");
-        leaveJam();
-        return;
-      }
-      notifyParticipantChanges(prev, payload);
-    }
-
-    currentJam.value = payload;
-  }
-
-  function onSocketMessage(data: unknown) {
-    const parsed = outboundWsMessageSchema.safeParse(data);
-    if (!parsed.success) {
-      log.warn(
-        "Jam socket: bad inbound frame",
-        parsed.error.issues.slice(0, 3),
-      );
-      return;
-    }
-    log.debug("onSocketMessage", parsed.data);
-
-    const msg = parsed.data;
-    if ("type" in msg) {
-      log.error("Jam socket error:", msg.message);
-      const { message, title } = jamErrorMessage(msg.message);
-      if (pendingRoomJoin.value && !currentJam.value) {
-        pendingRoomJoin.value = false;
-        abortPendingJoin();
-        showJamAlert(message, title);
-        return;
-      }
-      if (currentJam.value) showJamAlert(message, title);
-      return;
-    }
-    switch (msg.event) {
-      case "room.state":
-        applyRoomState(msg.payload as RoomStateSchema);
-        break;
-      case "queue.state": {
-        const prev = lastQueueState.value;
-        lastQueueState.value = msg.payload as QueueStateSchema;
-        serverSync.noteQueueMessage(lastQueueState.value, prev);
-        break;
-      }
-      case "player.state":
-        lastPlayerState.value = msg.payload as PlayerStateSchema;
-        serverSync.notePlayerMessage();
-        break;
-      default:
-        break;
-    }
-  }
-
-  /** Opens a fresh WS, attaches handlers, resolves when the socket is usable. */
-  async function getConnectedSocket(): Promise<CiderSyncSocket> {
-    if (!identity.value) {
-      throw new Error("You are not logged in");
-    }
-
-    detachSocket();
-
-    const client = ciderSyncSocket(identity.value);
-    socket.value = client;
-    client.subscribe((ev) => onSocketMessage(ev.data));
-    await waitForWebSocketOpen(client);
-    return client;
-  }
-
   async function createJam() {
     if (!identity.value) {
       await refreshIdentity();
@@ -179,23 +182,18 @@ export const useJamStore = defineStore("jam-store", () => {
     const client = await getConnectedSocket();
     const mk = MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose;
 
-    const playerAdapter = new MusicKitJamHostPlayerAdapter(mk);
-    const syncSource = new MusicKitJamHostSyncSource(mk);
-
     jamHostSession.value = startJamHostSession({
       socket: client,
       getLastJamQueue: () => lastQueueState.value,
       getLastJamPlayer: () => lastPlayerState.value,
-      playerAdapter,
-      syncSource,
+      playerAdapter: new MusicKitJamHostPlayerAdapter(mk),
+      syncSource: new MusicKitJamHostSyncSource(mk),
     });
   }
 
   async function joinJam(roomCode: string) {
     const code = roomCode.trim().toUpperCase();
-    if (!code) {
-      throw new Error("Enter a session code");
-    }
+    if (!code) throw new Error("Enter a session code");
 
     if (!identity.value) {
       await refreshIdentity();
@@ -207,20 +205,19 @@ export const useJamStore = defineStore("jam-store", () => {
     useSharePlayStore().activate();
 
     const client = await getConnectedSocket();
-    guestActions.value?.stop();
     const mk = MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose;
-    guestActions.value = new SharePlayGuestActions(
+
+    guestActions.value?.stop();
+    guestActions.value = new JamGuestActions(
       mk,
       client,
       () => useSharePlayStore().inhibitor?.isSuppressingGuestActions() ?? false,
       () => lastQueueState.value,
     );
     guestActions.value.start();
+
     pendingRoomJoin.value = true;
-    client.send({
-      event: "room.join",
-      payload: { roomCode: code },
-    });
+    client.send({ event: "room.join", payload: { roomCode: code } });
   }
 
   function abortPendingJoin() {
@@ -240,11 +237,12 @@ export const useJamStore = defineStore("jam-store", () => {
     if (s?.ws.readyState === WebSocket.OPEN && currentJam.value) {
       s.send({ event: "room.leave", payload: {} });
     }
+
     detachSocket();
     currentJam.value = null;
     lastQueueState.value = null;
     lastPlayerState.value = null;
-    serverSync.reset();
+    inboundSync.reset();
     useSharePlayStore().deactivate();
   }
 

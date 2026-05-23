@@ -2,7 +2,7 @@
 import { ref, shallowRef, onMounted, onUnmounted } from "vue";
 import type { PlayerStateSchema, QueueStateSchema } from "@ciderjams/proto";
 import { serverWireMessageSchema } from "@ciderjams/proto";
-import { jamPlaybackToSharePlayPayload } from "@plugin/lib/jam/guest-shareplay";
+import { jamPlaybackToSharePlayPayload } from "@plugin/lib/jam/from-server";
 import type { SharePlayPublishedMediaState } from "@shareplay/types";
 import { MockGuestAdapter } from "../MockPlayerAdapter";
 
