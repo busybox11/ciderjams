@@ -5,16 +5,12 @@ import { type Treaty, treaty } from "@elysia/eden";
 
 import { clientWireMessageSchema, createLogger } from "@ciderjams/proto";
 
+import { getApiBaseUrl } from "./api-base-url";
+
 const log = createLogger("plugin", "api");
 
-const API_BASE_URL = "http://0.0.0.0:8787";
-
-function normalizeBase(url: string): string {
-  return url.replace(/\/$/, "");
-}
-
 export function ciderJamsApi(): Treaty.Create<App> {
-  return treaty<App>(normalizeBase(API_BASE_URL));
+  return treaty<App>(getApiBaseUrl());
 }
 
 export function ciderHealth() {

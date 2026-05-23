@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from "pinia";
-import { type App, defineCustomElement } from "vue";
+import { type App, defineCustomElement, watch } from "vue";
 
 import { devtools } from "@vue/devtools";
 
@@ -16,7 +16,8 @@ import MainModalView from "./components/MainModal/MainModalView.vue";
 import MenuIndicator from "./components/MainModal/MenuIndicator.vue";
 import MySettings from "./components/MySettings.vue";
 import QueueItemUser from "./components/QueueItemUser.vue";
-import { InternalPluginSubscribeEvents, internalPluginEvents } from "./lib/events";
+import { apiBaseUrlRef, DEFAULT_API_BASE_URL, normalizeApiBaseUrl } from "./lib/api-base-url";
+import { internalPluginEvents, InternalPluginSubscribeEvents } from "./lib/events";
 import { mountInto, registerInjector, setupInjection } from "./lib/injection";
 import { log } from "./lib/logger";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
@@ -189,14 +190,17 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } = defineP
   },
 });
 
-/**
- * Some boilerplate code for our own configuration
- */
 export const cfg = setupConfig({
-  favoriteColor: <"red" | "green" | "blue">"blue",
-  count: <number>0,
-  booleanOption: <boolean>false,
+  apiBaseUrl: DEFAULT_API_BASE_URL,
 });
+
+watch(
+  () => cfg.value.apiBaseUrl,
+  (url) => {
+    apiBaseUrlRef.value = normalizeApiBaseUrl(url || DEFAULT_API_BASE_URL);
+  },
+  { immediate: true },
+);
 
 export function useConfig() {
   return cfg.value;

@@ -126,5 +126,6 @@ p {
   background: #e0e0e020;
   border: none !important;
   box-shadow: none !important;
+  cursor: pointer;
 }
 </style>
