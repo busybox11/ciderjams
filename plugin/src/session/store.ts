@@ -20,8 +20,8 @@ import {
   type JamHostSessionHandle,
   startJamHostSession,
 } from "./host/session";
-import { fetchJamIdentity } from "./identity";
-import { hostLeftSession, notifyParticipantChanges } from "./room-lifecycle";
+import { ensureJamIdentity, prefetchJamIdentity } from "./identity";
+import { transitionRoomState } from "./room-lifecycle";
 import { connectJamSocket } from "./socket";
 import { createJamInboundSync, jamPlaybackToSharePlayPayload } from "./sync/inbound";
 
@@ -97,28 +97,21 @@ export const useJamStore = defineStore("jam-store", () => {
     const prev = currentJam.value;
     pendingRoomJoin.value = false;
 
-    if (prev) {
-      if (!isHost() && hostLeftSession(prev, payload)) {
-        showJamAlert("The host ended the listening session.", "Session ended");
-        leaveJam();
-        return;
-      }
-      notifyParticipantChanges(prev, payload, identity.value?.userId);
+    const transition = transitionRoomState(prev, payload, {
+      isHost: isHost(),
+      myUserId: identity.value?.userId,
+    });
+    if (transition.kind === "host_left") {
+      showJamAlert("The host ended the listening session.", "Session ended");
+      leaveJam();
+      return;
     }
 
-    currentJam.value = payload;
-  }
-
-  async function ensureIdentity() {
-    if (identity.value) return;
-    identity.value = await fetchJamIdentity();
-    if (!identity.value) {
-      throw new Error("Could not load Apple Music profile");
-    }
+    currentJam.value = transition.next;
   }
 
   async function createJam() {
-    await ensureIdentity();
+    await ensureJamIdentity(identity);
 
     useSharePlayStore().activate();
 
@@ -138,7 +131,7 @@ export const useJamStore = defineStore("jam-store", () => {
     const code = roomCode.trim().toUpperCase();
     if (!code) throw new Error("Enter a session code");
 
-    await ensureIdentity();
+    await ensureJamIdentity(identity);
 
     useSharePlayStore().activate();
 
@@ -184,9 +177,7 @@ export const useJamStore = defineStore("jam-store", () => {
     useSharePlayStore().deactivate();
   }
 
-  void fetchJamIdentity().then((participant) => {
-    identity.value = participant;
-  });
+  prefetchJamIdentity(identity);
 
   return {
     currentJam,

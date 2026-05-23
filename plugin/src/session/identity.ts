@@ -1,6 +1,7 @@
 import type { roomParticipant } from "@ciderjams/proto";
 
 import { useMusicKit } from "@ciderapp/pluginkit";
+import type { Ref } from "vue";
 
 import { log } from "../cider/logger";
 
@@ -39,4 +40,21 @@ export async function fetchJamIdentity(): Promise<roomParticipant | null> {
     log.error("Failed to fetch identity:", error);
     return null;
   }
+}
+
+export async function ensureJamIdentity(
+  identity: Ref<roomParticipant | null>,
+): Promise<roomParticipant> {
+  if (identity.value) return identity.value;
+  identity.value = await fetchJamIdentity();
+  if (!identity.value) {
+    throw new Error("Could not load Apple Music profile");
+  }
+  return identity.value;
+}
+
+export function prefetchJamIdentity(identity: Ref<roomParticipant | null>): void {
+  void fetchJamIdentity().then((participant) => {
+    identity.value = participant;
+  });
 }

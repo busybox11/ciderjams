@@ -14,7 +14,7 @@ export type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
 
 export * from "./adapter";
 
-const log = createLogger("plugin", "shareplay");
+const log = createLogger("plugin", "playback/inhibitor");
 
 export interface SharePlayHooks {
   onInjected?: () => void;

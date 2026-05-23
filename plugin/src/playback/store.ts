@@ -9,7 +9,7 @@ import {
   type SharePlaySyncInput,
 } from "./inhibitor";
 
-const log = createLogger("plugin", "stores/shareplay");
+const log = createLogger("plugin", "playback/store");
 
 export interface SharePlayStore {
   active: Ref<boolean>;

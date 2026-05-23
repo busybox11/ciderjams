@@ -9,7 +9,7 @@ import {
 } from "../cider/events";
 import { subscribeMusicKitEvent } from "./bridge";
 
-const log = createLogger("plugin", "shareplay/host");
+const log = createLogger("plugin", "playback/host-listener");
 
 /** Item list changes only; index moves use PLAYBACK_SYNC_EVENTS → player.host.sync */
 export const QUEUE_SYNC_EVENTS: string[] = ["queueItemsDidChange", "queuePositionDidChange"];

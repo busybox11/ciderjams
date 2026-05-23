@@ -26,3 +26,21 @@ export function notifyParticipantChanges(
 export function hostLeftSession(prev: RoomStateSchema, next: RoomStateSchema): boolean {
   return !next.participants.some((p) => p.userId === prev.hostUserId);
 }
+
+export type RoomStateTransition =
+  | { kind: "applied"; next: RoomStateSchema }
+  | { kind: "host_left" };
+
+export function transitionRoomState(
+  prev: RoomStateSchema | null,
+  next: RoomStateSchema,
+  options: { isHost: boolean; myUserId: string | undefined },
+): RoomStateTransition {
+  if (prev) {
+    if (!options.isHost && hostLeftSession(prev, next)) {
+      return { kind: "host_left" };
+    }
+    notifyParticipantChanges(prev, next, options.myUserId);
+  }
+  return { kind: "applied", next };
+}

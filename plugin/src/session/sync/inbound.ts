@@ -9,7 +9,7 @@ import {
   jamQueueCatalogIds,
 } from "../../musickit/payloads";
 
-const log = createLogger("plugin", "jam/from-server");
+const log = createLogger("plugin", "session/sync/inbound");
 
 const APPLY_SUPPRESS_MS = 750;
 const SEEK_DRIFT_MS = 500;

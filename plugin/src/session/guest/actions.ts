@@ -18,7 +18,7 @@ import {
   playbackPositionMs,
 } from "../../musickit/payloads";
 
-const log = createLogger("plugin", "jam/guest-actions");
+const log = createLogger("plugin", "session/guest/actions");
 
 const PLAY_EVENTS = new Set(["playbackPlay"]);
 const PAUSE_EVENTS = new Set(["playbackPause", "playbackStop"]);
