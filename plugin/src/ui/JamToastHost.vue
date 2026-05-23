@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useJamToasts } from "../stores/toasts";
+import { useJamToasts } from "./toasts";
 
 const { toasts } = useJamToasts();
 </script>

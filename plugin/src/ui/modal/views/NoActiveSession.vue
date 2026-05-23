@@ -2,7 +2,7 @@
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
 
 import { log } from "../../../lib/logger";
-import { showJamAlert } from "../../../lib/notifications";
+import { showJamAlert } from "../../notifications";
 import { useJamStore } from "../../../session/store";
 import JamMemberListItem from "../../shared/JamMemberListItem.vue";
 import ModalHeader from "../../shared/ModalHeader.vue";

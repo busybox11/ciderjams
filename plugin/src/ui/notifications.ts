@@ -1,6 +1,6 @@
 import { DialogAPI } from "@ciderapp/pluginkit";
 
-import { showJamToast } from "../stores/toasts";
+import { showJamToast } from "./toasts";
 
 export function showJamAlert(message: string, title?: string): void {
   void DialogAPI.createAlert(message, title);
