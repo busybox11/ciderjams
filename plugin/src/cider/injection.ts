@@ -12,7 +12,7 @@ import {
 
 import { createLogger } from "@ciderjams/proto";
 
-const log = createLogger("plugin", "injection");
+const log = createLogger("plugin", "cider/injection");
 
 export type InjectorMatch = (component: any, el: HTMLElement) => boolean;
 /** return false to skip marking the host so a later updated cycle can retry */
