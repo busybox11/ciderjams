@@ -2,7 +2,7 @@ import type { roomParticipant } from "@ciderjams/proto";
 
 import { useMusicKit } from "@ciderapp/pluginkit";
 
-import { log } from "../lib/logger";
+import { log } from "../cider/logger";
 
 export async function fetchJamIdentity(): Promise<roomParticipant | null> {
   try {

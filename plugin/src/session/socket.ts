@@ -8,7 +8,7 @@ import type {
 import { outboundWsMessageSchema } from "@ciderjams/proto";
 
 import { type CiderSyncSocket, ciderSyncSocket } from "../api/client";
-import { log } from "../lib/logger";
+import { log } from "../cider/logger";
 import { waitForWebSocketOpen } from "./host/session";
 
 export type JamSocketHandlers = {

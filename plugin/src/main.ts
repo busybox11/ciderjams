@@ -6,7 +6,7 @@ import { installPluginConfig } from "./entry/config";
 import { CustomElements } from "./entry/elements";
 import { registerPluginInjectors } from "./entry/injectors";
 import { runPluginSetup } from "./entry/plugin-setup";
-import { log } from "./lib/logger";
+import { log } from "./cider/logger";
 import PluginConfig from "./plugin.config";
 
 if (import.meta.env.VITE_WITH_VUE_DEVTOOLS === "true") {

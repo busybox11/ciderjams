@@ -9,7 +9,7 @@ import {
 
 import { internalPluginEvents, InternalPluginSubscribeEvents } from "../cider/events";
 import { mountInto, setupInjection } from "../cider/injection";
-import { log } from "../lib/logger";
+import { log } from "../cider/logger";
 import { useSharePlayStore } from "../playback/store";
 import JamToastHost from "../ui/JamToastHost.vue";
 import MySettings from "../ui/MySettings.vue";

@@ -8,7 +8,7 @@ import type { SharePlayHostAdapterHooks } from "../../playback/adapter";
 import type { CiderSyncSocket } from "../../api/client";
 import type { JamHostPlayerAdapter } from "./player-adapter";
 
-import { log } from "../../lib/logger";
+import { log } from "../../cider/logger";
 import { jamQueueCatalogIds } from "../../musickit/payloads";
 
 export interface JamHostSyncSource {
