@@ -46,7 +46,46 @@ function configureApp(app: App) {
   app.use(pinia);
 }
 
-setupInjection(window.CiderApp.app);
+const MENU_BTN_INJECT_KEY = Symbol.for("ciderjams.menu-btn");
+const QUEUE_ITEM_INJECT_KEY = Symbol.for("ciderjams.am-queue-item");
+
+registerInjector({
+  // @ts-expect-error: PluginBaseButton is an untyped global definition
+  target: window.__PLUGINSYS__.App.Components.PluginBaseButton,
+  key: MENU_BTN_INJECT_KEY,
+
+  match: (component) =>
+    component.$?.props?.button?.element === PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
+
+  inject(component, el) {
+    const host = (component.$?.vnode?.el ?? el) as HTMLElement | undefined;
+    if (!host) return false;
+    for (const child of Array.from(host.children) as HTMLElement[]) {
+      child.style.display = "none";
+    }
+    host.appendChild(document.createElement(customElementName("menu-indicator")));
+    return true;
+  },
+});
+
+registerInjector({
+  key: QUEUE_ITEM_INJECT_KEY,
+  match: (component, el) =>
+    component.$?.type?.__name === "AMQueueItem" &&
+    !!el.querySelector(".queue-item-actions") &&
+    el.children.length > 0,
+
+  inject(component, el) {
+    const amMediaItem = component.$?.props?.item;
+    if (!amMediaItem) return false;
+
+    el.style.gridTemplateColumns = "48px 1fr auto auto";
+    mountInto(QueueItemUser, el, window.CiderApp.app._context, {
+      item: amMediaItem,
+    });
+    return true;
+  },
+});
 
 /**
  * Custom Elements that will be registered in the app
@@ -69,38 +108,6 @@ export const CustomElements = {
     configureApp,
   }),
 };
-
-registerInjector({
-  // @ts-expect-error: PluginBaseButton is an untyped global definition
-  target: window.__PLUGINSYS__.App.Components.PluginBaseButton,
-
-  match: (component) =>
-    component.$?.props?.button?.element === PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
-
-  inject(component) {
-    const host: HTMLElement = component.$?.vnode?.el;
-    for (const child of Array.from(host.children) as HTMLElement[]) {
-      child.style.display = "none";
-    }
-    host.appendChild(document.createElement(customElementName("menu-indicator")));
-  },
-});
-
-registerInjector({
-  match: (component, el) =>
-    component.$?.type?.__name === "AMQueueItem" &&
-    !!el.querySelector(".queue-item-actions") &&
-    el.children.length > 0,
-
-  inject(component, el) {
-    const amMediaItem = component.$?.props?.item;
-
-    el.style.gridTemplateColumns = "48px 1fr auto auto";
-    mountInto(QueueItemUser, el, undefined, {
-      item: amMediaItem,
-    });
-  },
-});
 
 /**
  * Defining the plugin context
@@ -130,6 +137,8 @@ const { plugin, setupConfig, customElementName, goToPage, useCPlugin } = defineP
      * Defining our custom settings element
      */
     this.SettingsElement = customElementName("settings");
+
+    setupInjection(window.CiderApp.app);
 
     addCustomButton({
       element: PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,

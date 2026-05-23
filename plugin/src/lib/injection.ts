@@ -1,7 +1,22 @@
-import { type App, type AppContext, type Component, h, render } from "vue";
+import {
+  type App,
+  type AppContext,
+  type Component,
+  getCurrentInstance,
+  h,
+  onMounted,
+  onUpdated,
+  render,
+} from "vue";
+
+
+import { createLogger } from "@ciderjams/proto";
+
+const log = createLogger("plugin", "injection");
 
 export type InjectorMatch = (component: any, el: HTMLElement) => boolean;
-export type InjectorAction = (component: any, el: HTMLElement) => void;
+/** return false to skip marking the host so a later updated cycle can retry */
+export type InjectorAction = (component: any, el: HTMLElement) => boolean | undefined;
 
 export interface Injector {
   /** predicate evaluated for every candidate */
@@ -19,6 +34,7 @@ export interface Injector {
 }
 
 const DEFAULT_KEY = Symbol("injection.applied");
+const SETUP_KEY = Symbol.for("ciderjams.injection.setup");
 const PATCHED = new WeakSet<any>();
 const globalInjectors: Injector[] = [];
 const targetedInjectors = new WeakMap<any, Injector[]>();
@@ -31,35 +47,65 @@ function dispatch(component: any, list: Injector[]) {
     // @ts-expect-error: dynamic marker
     if (el[key]) continue;
     if (!inj.match(component, el)) continue;
+    if (inj.inject(component, el) === false) continue;
     // @ts-expect-error: dynamic marker
     el[key] = true;
-    inj.inject(component, el);
+  }
+}
+
+type LifecycleHook = "mounted" | "updated";
+
+/** fallback for options-API components without a setup() function */
+function appendLifecycleHook(opts: any, hook: LifecycleHook, fn: (this: any) => void) {
+  const existing = opts[hook];
+  if (Array.isArray(existing)) {
+    existing.push(fn);
+  } else if (existing) {
+    opts[hook] = [existing, fn];
+  } else {
+    opts[hook] = fn;
   }
 }
 
 function patchTargetLifecycle(target: any) {
   if (PATCHED.has(target)) return;
   PATCHED.add(target);
-  const origMounted = target.mounted;
-  const origUpdated = target.updated;
-  const fire = function (this: any) {
+
+  if (typeof target.setup === "function") {
+    const origSetup = target.setup;
+    target.setup = (props: unknown, ctx: unknown) => {
+      const result = origSetup(props, ctx);
+      const fire = () => {
+        const proxy = getCurrentInstance()?.proxy;
+        if (proxy) dispatch(proxy, targetedInjectors.get(target) ?? []);
+      };
+      onMounted(fire);
+      onUpdated(fire);
+      return result;
+    };
+    return;
+  }
+
+  const fire = function (this: unknown) {
     dispatch(this, targetedInjectors.get(target) ?? []);
   };
-  target.mounted = function () {
-    origMounted?.call(this);
-    fire.call(this);
-  };
-  target.updated = function () {
-    origUpdated?.call(this);
-    fire.call(this);
-  };
+  for (const hook of ["mounted", "updated"] as const) {
+    appendLifecycleHook(target.__vccOpts ?? target, hook, fire);
+  }
 }
 
 /**
  * installs a global mixin on `app` that fires every non-targeted injector
  * on `mounted` and `updated`. call once at module load
  */
-export function setupInjection(app: App | { mixin: (m: any) => void }) {
+export function setupInjection(app: App | { mixin?: (m: any) => void }) {
+  if (!app || typeof app.mixin !== "function") {
+    log.warn("setupInjection: app.mixin is not available", app);
+    return;
+  }
+  if ((app as { [SETUP_KEY]?: boolean })[SETUP_KEY]) return;
+  (app as { [SETUP_KEY]?: boolean })[SETUP_KEY] = true;
+  log.log("setting up injection", app);
   const fire = function (this: any) {
     dispatch(this, globalInjectors);
   };
