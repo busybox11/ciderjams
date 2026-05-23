@@ -1,32 +1,15 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
 
-import { log } from "../../../lib/logger";
-import { showJamAlert } from "../../notifications";
-import { useJamStore } from "../../../session/store";
 import JamMemberListItem from "../../shared/JamMemberListItem.vue";
 import ModalHeader from "../../shared/ModalHeader.vue";
+import { useJamSessionActions } from "../useJamSessionActions";
 
-const jamStore = useJamStore();
-
-const createJam = async () => {
-  try {
-    await jamStore.createJam();
-  } catch (e) {
-    log.error(e);
-  }
-};
+const { jamStore, createSession, joinSession } = useJamSessionActions();
 
 const roomCode = ref("");
-const joinJam = async () => {
-  try {
-    await jamStore.joinJam(roomCode.value);
-  } catch (e) {
-    log.error(e);
-    const message = e instanceof Error ? e.message : "Could not join session";
-    showJamAlert(message, "Couldn't join");
-  }
-};
+
+const joinJam = () => joinSession(roomCode.value);
 </script>
 
 <template>
@@ -38,7 +21,7 @@ const joinJam = async () => {
     <hr class="ciderjams-divider" />
 
     <div class="ciderjams-buttons">
-      <button type="button" class="c-btn primary" @click="createJam">
+      <button type="button" class="c-btn primary" @click="createSession">
         Create session
       </button>
 
