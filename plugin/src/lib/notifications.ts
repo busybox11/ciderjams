@@ -19,8 +19,7 @@ export function jamErrorMessage(raw: string): {
     case "room not found":
       return {
         title: "Couldn't join",
-        message:
-          "No session exists with that code. Check the code and try again.",
+        message: "No session exists with that code. Check the code and try again.",
       };
     case "invalid join payload":
       return {

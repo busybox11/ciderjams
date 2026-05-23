@@ -1,14 +1,14 @@
 import type { QueueStateSchema } from "@ciderjams/proto";
+import type { SharePlayHostAdapterHooks } from "../../../shareplay/adapter";
+import type { JamHostPlayerAdapter } from "../player-adapter";
+import type { JamHostSyncSource } from "../session";
 
+import { SharePlayHost } from "../../../shareplay/host";
 import {
   makePlayerHostSyncPayload,
   makeQueuePayload,
   makeRoomPlaybackStatePayload,
 } from "../../musickit/payloads";
-import type { JamHostPlayerAdapter } from "../player-adapter";
-import type { JamHostSyncSource } from "../session";
-import type { SharePlayHostAdapterHooks } from "../../../shareplay/adapter";
-import { SharePlayHost } from "../../../shareplay/host";
 
 export class MusicKitJamHostPlayerAdapter implements JamHostPlayerAdapter {
   constructor(private readonly music: MusicKit.MusicKitInstanceLoose) {}

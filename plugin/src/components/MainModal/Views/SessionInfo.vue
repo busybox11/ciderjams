@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
 
+import { useJamStore } from "../../../stores/main";
 import JamMemberListItem from "../../shared/JamMemberListItem.vue";
 import ModalHeader from "../../shared/ModalHeader.vue";
-
-import { useJamStore } from "../../../stores/main";
 
 const jamStore = useJamStore();
 
@@ -26,7 +25,7 @@ const leaveSession = () => {
     <hr class="ciderjams-divider" />
 
     <div class="ciderjams-buttons">
-      <button class="c-btn primary" @click="leaveSession">
+      <button type="button" class="c-btn primary" @click="leaveSession">
         Leave session
       </button>
 
@@ -35,7 +34,7 @@ const leaveSession = () => {
           <small>Room code</small>
         <span class="ciderjams-room-code">{{ currentJam?.roomCode }}</span>
       </div>
-        <button class="ciderjams-icon-button">
+        <button type="button" class="ciderjams-icon-button">
           <CComponent
             name="NIcon"
             :componentProps="{
@@ -43,7 +42,7 @@ const leaveSession = () => {
             }"
           />
         </button>
-        <button class="ciderjams-icon-button">
+        <button type="button" class="ciderjams-icon-button">
           <CComponent
             name="NIcon"
             :componentProps="{

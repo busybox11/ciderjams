@@ -1,5 +1,7 @@
-import type { ClientWireMessage, WireErrorMessage } from "@ciderjams/proto";
-import { roomParticipant } from "@ciderjams/proto";
+import type { ClientWireMessage, roomParticipant, WireErrorMessage } from "@ciderjams/proto";
+import type { RoomRegistry } from "./registry";
+import type { Room } from "./room";
+
 import {
   applyInRoom,
   createRoomOp,
@@ -8,8 +10,6 @@ import {
   type ServerMessage,
 } from "./dispatch";
 import { log } from "./logger";
-import type { RoomRegistry } from "./registry";
-import type { Room } from "./room";
 
 export interface HubSocket {
   send(data: string): void;
@@ -62,11 +62,7 @@ export class RoomSocketHub {
     }
   }
 
-  onMessage(
-    ws: HubSocket,
-    registry: RoomRegistry,
-    msg: ClientWireMessage,
-  ): void {
+  onMessage(ws: HubSocket, registry: RoomRegistry, msg: ClientWireMessage): void {
     const c = this.ctx.get(ws);
     if (!c) {
       this.error(ws, "internal: missing socket context");
@@ -90,12 +86,7 @@ export class RoomSocketHub {
       const res = joinRoomOp(registry, msg.payload, c.user);
       if (!res.ok) {
         log.warn("room join failed", res.reason);
-        this.error(
-          ws,
-          res.reason === "not_found"
-            ? "room not found"
-            : "invalid join payload",
-        );
+        this.error(ws, res.reason === "not_found" ? "room not found" : "invalid join payload");
         return;
       }
 
@@ -114,13 +105,7 @@ export class RoomSocketHub {
     }
 
     try {
-      const r = applyInRoom(
-        registry,
-        room,
-        msg.event,
-        msg.payload,
-        c.user.userId,
-      );
+      const r = applyInRoom(registry, room, msg.event, msg.payload, c.user.userId);
       if (r.roomClosed) {
         log.log("room closed (empty)", room.meta.roomCode);
         this.clearRoom(room);

@@ -1,23 +1,18 @@
+import type { ISharePlayHostAdapter, SharePlayHostAdapterHooks } from "./adapter";
+
+import { createLogger } from "@ciderjams/proto";
+
 import {
   INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS,
   INTERNAL_PLUGIN_SUBSCRIBE_EVENTS,
   internalPluginEvents,
 } from "../lib/events";
-import type {
-  ISharePlayHostAdapter,
-  SharePlayHostAdapterHooks,
-} from "./adapter";
 import { subscribeMusicKitEvent } from "./musickit-bridge";
-
-import { createLogger } from "@ciderjams/proto";
 
 const log = createLogger("plugin", "shareplay/host");
 
 /** Item list changes only; index moves use PLAYBACK_SYNC_EVENTS → player.host.sync */
-export const QUEUE_SYNC_EVENTS: string[] = [
-  "queueItemsDidChange",
-  "queuePositionDidChange",
-];
+export const QUEUE_SYNC_EVENTS: string[] = ["queueItemsDidChange", "queuePositionDidChange"];
 
 export const PLAYBACK_TIME_EVENTS: string[] = ["playbackTimeDidChange"];
 
@@ -53,10 +48,7 @@ export type SharePlayHostOptions = {
 
 export class SharePlayHost implements ISharePlayHostAdapter {
   private readonly eventCleanups: (() => void)[] = [];
-  private readonly internalPluginEvents = new Map<
-    string,
-    (...args: unknown[]) => void
-  >();
+  private readonly internalPluginEvents = new Map<string, (...args: unknown[]) => void>();
   private lastPlaybackSync = 0;
   private playbackSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private hostStateSyncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -122,9 +114,7 @@ export class SharePlayHost implements ISharePlayHostAdapter {
           }
         }
       };
-      this.eventCleanups.push(
-        subscribeMusicKitEvent(this.music, event, handler),
-      );
+      this.eventCleanups.push(subscribeMusicKitEvent(this.music, event, handler));
     }
 
     // ew ugly ew but it works for now so dont criticise me or i will cry
@@ -153,10 +143,7 @@ export class SharePlayHost implements ISharePlayHostAdapter {
     this.eventCleanups.length = 0;
 
     for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
-      internalPluginEvents.removeEventListener(
-        event,
-        this.internalPluginEvents.get(event) ?? null,
-      );
+      internalPluginEvents.removeEventListener(event, this.internalPluginEvents.get(event) ?? null);
       this.internalPluginEvents.delete(event);
     }
   }

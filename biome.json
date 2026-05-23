@@ -1,0 +1,87 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/dist-ssr",
+      "!**/node_modules",
+      "!**/publish",
+      "!**/refs",
+      "!plugin/auto-imports.d.ts"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "complexity": {
+        "noImportantStyles": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always"
+    }
+  },
+  "html": {
+    "experimentalFullSupportEnabled": true
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              { "type": true },
+              ":BLANK_LINE:",
+              [":BUN:", ":NODE:"],
+              ":BLANK_LINE:",
+              ["vue", "vue/**", "pinia", "pinia/**"],
+              ":BLANK_LINE:",
+              [
+                ":PACKAGE:",
+                ":PACKAGE_WITH_PROTOCOL:",
+                "!@ciderjams/**",
+                "!@ciderapp/**",
+                "!@plugin/**",
+                "!@shareplay/**"
+              ],
+              ":BLANK_LINE:",
+              ["@ciderjams/**"],
+              ":BLANK_LINE:",
+              ["@ciderapp/**"],
+              ":BLANK_LINE:",
+              ["@plugin/**", "@shareplay/**"],
+              ":BLANK_LINE:",
+              ["@/**"],
+              ":BLANK_LINE:",
+              ["**", "!**/*.css", "!**/*.scss", "!**/*.sass"],
+              ":BLANK_LINE:",
+              ["**/*.css", "**/*.scss", "**/*.sass"]
+            ]
+          }
+        }
+      }
+    }
+  }
+}

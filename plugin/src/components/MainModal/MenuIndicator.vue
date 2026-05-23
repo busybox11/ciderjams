@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
+
 import { useJamStore } from "../../stores/main";
 
 const jamStore = useJamStore();
@@ -20,7 +21,12 @@ const currentJamOwner = computed(() => {
       }"
     />
 
-    <img :src="currentJamOwner?.avatar" class="menu-indicator-avatar" v-if="currentJamOwner" />
+    <img
+      v-if="currentJamOwner"
+      :src="currentJamOwner.avatar"
+      :alt="currentJamOwner.name"
+      class="menu-indicator-avatar"
+    />
   </div>
 </template>
 

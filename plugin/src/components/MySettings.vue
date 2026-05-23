@@ -8,7 +8,7 @@ const cfg = useConfig()
   <div class="q-px-lg plugin-base">
     Custom settings page
     <div>
-      <button @click="cfg.count++">config count is: {{ cfg.count }}</button>
+      <button type="button" @click="cfg.count++">config count is: {{ cfg.count }}</button>
     </div>
     <div>
       <label>

@@ -1,13 +1,14 @@
+import type { RoomRegistry } from "./registry";
+import type { Room } from "./room";
+
 import {
-  clientEventPayloads,
   type ClientEvent,
   type ClientEventPayloadMap,
+  clientEventPayloads,
   type roomParticipant,
   type ServerEvent,
   type ServerEventPayloadMap,
 } from "@ciderjams/proto";
-import type { RoomRegistry } from "./registry";
-import type { Room } from "./room";
 
 export type ServerMessage = {
   [E in ServerEvent]: { event: E; payload: ServerEventPayloadMap[E] };
@@ -83,10 +84,7 @@ export type ApplyInRoomResult = {
   roomClosed?: true;
 };
 
-type InRoomEvent = Exclude<
-  ClientEvent,
-  "room.create" | "room.join"
->;
+type InRoomEvent = Exclude<ClientEvent, "room.create" | "room.join">;
 
 type InRoomHandlerCtx = {
   registry: RoomRegistry;
@@ -119,11 +117,7 @@ function playerCommand<E extends PlayerCommandEvent>(
 }
 
 function queuePlayerCommand(
-  run: (
-    room: Room,
-    actorId: string,
-    data: ClientEventPayloadMap["queue.set"],
-  ) => void,
+  run: (room: Room, actorId: string, data: ClientEventPayloadMap["queue.set"]) => void,
 ): InRoomHandler {
   return ({ room, rawPayload, actorId }) => {
     const data = parseClientPayload("queue.set", rawPayload);
@@ -174,33 +168,21 @@ const inRoomHandlers: Record<InRoomEvent, InRoomHandler> = {
     room.next(actorId);
   }),
 
-  "player.previous": playerCommand(
-    "player.previous",
-    (room, actorId, _data) => {
-      room.previous(actorId);
-    },
-  ),
+  "player.previous": playerCommand("player.previous", (room, actorId, _data) => {
+    room.previous(actorId);
+  }),
 
-  "player.setRepeat": playerCommand(
-    "player.setRepeat",
-    (room, actorId, data) => {
-      room.setRepeat(actorId, data.repeatMode);
-    },
-  ),
+  "player.setRepeat": playerCommand("player.setRepeat", (room, actorId, data) => {
+    room.setRepeat(actorId, data.repeatMode);
+  }),
 
-  "player.setShuffle": playerCommand(
-    "player.setShuffle",
-    (room, actorId, data) => {
-      room.setShuffle(actorId, data.shuffleMode);
-    },
-  ),
+  "player.setShuffle": playerCommand("player.setShuffle", (room, actorId, data) => {
+    room.setShuffle(actorId, data.shuffleMode);
+  }),
 
-  "player.host.sync": playerCommand(
-    "player.host.sync",
-    (room, actorId, data) => {
-      room.hostSync(actorId, data.playbackState);
-    },
-  ),
+  "player.host.sync": playerCommand("player.host.sync", (room, actorId, data) => {
+    room.hostSync(actorId, data.playbackState);
+  }),
 };
 
 export function applyInRoom(
@@ -211,9 +193,7 @@ export function applyInRoom(
   actorId: string,
 ): ApplyInRoomResult {
   if (event === "room.create" || event === "room.join") {
-    throw new Error(
-      "use createRoomOp / joinRoomOp for room.create and room.join",
-    );
+    throw new Error("use createRoomOp / joinRoomOp for room.create and room.join");
   }
 
   return inRoomHandlers[event as InRoomEvent]({

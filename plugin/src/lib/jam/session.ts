@@ -4,12 +4,12 @@ import type {
   QueueSetPayload,
   QueueStateSchema,
 } from "@ciderjams/proto";
-
 import type { SharePlayHostAdapterHooks } from "../../shareplay/adapter";
 import type { CiderSyncSocket } from "../api";
-import { jamQueueCatalogIds } from "../musickit/payloads";
-import { log } from "../logger";
 import type { JamHostPlayerAdapter } from "./player-adapter";
+
+import { log } from "../logger";
+import { jamQueueCatalogIds } from "../musickit/payloads";
 
 export interface JamHostSyncSource {
   start(hooks: SharePlayHostAdapterHooks): void;
@@ -25,10 +25,7 @@ export type JamHostSessionHandle = {
 export function waitForWebSocketOpen(client: CiderSyncSocket): Promise<void> {
   const { ws } = client;
   if (ws.readyState === WebSocket.OPEN) return Promise.resolve();
-  if (
-    ws.readyState === WebSocket.CLOSING ||
-    ws.readyState === WebSocket.CLOSED
-  ) {
+  if (ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
     return Promise.reject(new Error("WebSocket is closed"));
   }
   return new Promise((resolve, reject) => {
@@ -53,28 +50,28 @@ type JamHostSharedSlices = {
   queue: QueueStateSchema | null;
 };
 
-function isSameQueueCatalogOrder(
-  last: QueueStateSchema,
-  next: QueueSetPayload,
-): boolean {
+function isSameQueueCatalogOrder(last: QueueStateSchema, next: QueueSetPayload): boolean {
   const a = jamQueueCatalogIds(last);
   const b = next.map((e) => e.itemCatalogId);
   return a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
-const PLAYBACK_STATE_GUARDS: ([(state: PlayerHostSyncPayload["playbackState"]) => boolean, string])[] = [
-  [(state) => (!state.isPlaying || state.currentPlayingIndex !== -1),
+const PLAYBACK_STATE_GUARDS: [
+  (state: PlayerHostSyncPayload["playbackState"]) => boolean,
+  string,
+][] = [
+  [
+    (state) => !state.isPlaying || state.currentPlayingIndex !== -1,
     "isPlaying but currentPlayingIndex cannot be -1",
   ],
 ];
 
-const QUEUE_SET_GUARDS: ([(
-  payload: QueueSetPayload,
-  slices: JamHostSharedSlices,
-) => boolean, string])[] = [
+const QUEUE_SET_GUARDS: [
+  (payload: QueueSetPayload, slices: JamHostSharedSlices) => boolean,
+  string,
+][] = [
   [
-    (payload, { queue }) =>
-      !queue || !isSameQueueCatalogOrder(queue, payload),
+    (payload, { queue }) => !queue || !isSameQueueCatalogOrder(queue, payload),
     "queue catalog order unchanged",
   ],
 ];
@@ -107,10 +104,7 @@ function playbackStateGuard(state: PlayerHostSyncPayload["playbackState"]): bool
   return true;
 }
 
-function queueSetGuard(
-  payload: QueueSetPayload,
-  getSlices: () => JamHostSharedSlices,
-): boolean {
+function queueSetGuard(payload: QueueSetPayload, getSlices: () => JamHostSharedSlices): boolean {
   const slices = getSlices();
   for (const [guard, message] of QUEUE_SET_GUARDS) {
     if (!guard(payload, slices)) {
@@ -131,8 +125,7 @@ export function startJamHostSession(args: {
   playerAdapter: JamHostPlayerAdapter;
   syncSource: JamHostSyncSource;
 }): JamHostSessionHandle {
-  const { socket, getLastJamQueue, getLastJamPlayer, playerAdapter, syncSource } =
-    args;
+  const { socket, getLastJamQueue, getLastJamPlayer, playerAdapter, syncSource } = args;
 
   const getSlices = (): JamHostSharedSlices => ({
     queue: getLastJamQueue(),

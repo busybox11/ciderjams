@@ -87,12 +87,14 @@ export function mountInto<
   // vue components in TS often have a `__props` property (defineProps/defineComponent)
   P = T extends { __props?: infer Props }
     ? Props
-    : T extends new (...args: any) => { $props: infer Props2 }
+    : T extends new (
+          ...args: any
+        ) => { $props: infer Props2 }
       ? Props2
       : Record<string, any>,
 >(component: T, host: HTMLElement, appContext?: AppContext, props?: P) {
   const vnode = h(component, props ?? {});
-  // @ts-ignore: appContext is internal but writable
+  // @ts-expect-error: appContext is internal but writable
   vnode.appContext = appContext ?? window.__PLUGINSYS__.App.vue._context;
   render(vnode, host);
   if (vnode.el) host.appendChild(vnode.el as unknown as Node);

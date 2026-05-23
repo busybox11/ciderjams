@@ -5,16 +5,19 @@ import type {
   RoomStateSchema,
   roomParticipant,
 } from "@ciderjams/proto";
+
+import { computed, onUnmounted, ref, shallowRef } from "vue";
+
 import { outboundWsMessageSchema } from "@ciderjams/proto";
-import { ciderSyncSocket, type CiderSyncSocket } from "@plugin/lib/api";
+
+import { type CiderSyncSocket, ciderSyncSocket } from "@plugin/lib/api";
 import { DebugJamHostPlayerAdapter } from "@plugin/lib/jam/adapters/debug";
 import {
+  type JamHostSessionHandle,
   startJamHostSession,
   waitForWebSocketOpen,
-  type JamHostSessionHandle,
 } from "@plugin/lib/jam/session";
 import { ManualJamHostSyncSource } from "@plugin/lib/jam/sync-manual";
-import { computed, onUnmounted, ref, shallowRef } from "vue";
 
 /** Same throttle as `SharePlayHost` for `playbackTimeDidChange`. */
 const PLAYBACK_TIME_SYNC_MS = 10_000;

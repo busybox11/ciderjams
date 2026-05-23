@@ -1,3 +1,8 @@
+import { createPinia, setActivePinia } from "pinia";
+import { type App, defineCustomElement } from "vue";
+
+import { devtools } from "@vue/devtools";
+
 import {
   addCustomButton,
   definePluginContext,
@@ -5,22 +10,17 @@ import {
   useCider,
   useMusicKit,
 } from "@ciderapp/pluginkit";
-import { devtools } from "@vue/devtools";
-import { createPinia, setActivePinia } from "pinia";
-import { defineCustomElement, type App } from "vue";
 
 import JamToastHost from "./components/JamToastHost.vue";
 import MainModalView from "./components/MainModal/MainModalView.vue";
 import MenuIndicator from "./components/MainModal/MenuIndicator.vue";
-
 import MySettings from "./components/MySettings.vue";
 import QueueItemUser from "./components/QueueItemUser.vue";
+import { InternalPluginSubscribeEvents, internalPluginEvents } from "./lib/events";
 import { mountInto, registerInjector, setupInjection } from "./lib/injection";
 import { log } from "./lib/logger";
 import ComponentsShowcase from "./pages/ComponentsShowcase.vue";
 import CustomPage from "./pages/CustomPage.vue";
-
-import { internalPluginEvents, InternalPluginSubscribeEvents } from "./lib/events";
 import PluginConfig from "./plugin.config";
 import { useSharePlayStore } from "./stores/shareplay";
 
@@ -71,21 +71,18 @@ export const CustomElements = {
 };
 
 registerInjector({
-  // @ts-ignore: PluginBaseButton is an untyped global definition
+  // @ts-expect-error: PluginBaseButton is an untyped global definition
   target: window.__PLUGINSYS__.App.Components.PluginBaseButton,
 
   match: (component) =>
-    component.$?.props?.button?.element ===
-    PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
+    component.$?.props?.button?.element === PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
 
   inject(component) {
     const host: HTMLElement = component.$?.vnode?.el;
     for (const child of Array.from(host.children) as HTMLElement[]) {
       child.style.display = "none";
     }
-    host.appendChild(
-      document.createElement(customElementName("menu-indicator")),
-    );
+    host.appendChild(document.createElement(customElementName("menu-indicator")));
   },
 });
 
@@ -108,86 +105,80 @@ registerInjector({
 /**
  * Defining the plugin context
  */
-const { plugin, setupConfig, customElementName, goToPage, useCPlugin } =
-  definePluginContext({
-    ...PluginConfig,
-    CustomElements,
-    setup() {
-      /**
-       * Registering the custom elements in the app
-       */
-      for (const [key, value] of Object.entries(CustomElements)) {
-        const _key = key as keyof typeof CustomElements;
-        customElements.define(customElementName(_key), value);
+const { plugin, setupConfig, customElementName, goToPage, useCPlugin } = definePluginContext({
+  ...PluginConfig,
+  CustomElements,
+  setup() {
+    /**
+     * Registering the custom elements in the app
+     */
+    for (const [key, value] of Object.entries(CustomElements)) {
+      const _key = key as keyof typeof CustomElements;
+      customElements.define(customElementName(_key), value);
+    }
+
+    // Explicitly defining our settings element here to avoid issues with module load order
+    customElements.define(
+      customElementName("settings"),
+      defineCustomElement(MySettings, {
+        shadowRoot: false,
+        configureApp,
+      }),
+    );
+
+    /**
+     * Defining our custom settings element
+     */
+    this.SettingsElement = customElementName("settings");
+
+    addCustomButton({
+      element: PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
+      location: "chrome-top/right",
+      title: "Cider Jams",
+      ctxMenuElement: customElementName("main-modal-view"),
+      menuElement: customElementName("main-modal-view"),
+    });
+
+    const cider = useCider();
+    log.log("Cider", cider);
+
+    let lastQueueHash: string | null = null;
+    const mkStore = cider.musicKitStore;
+    mkStore.$subscribe((_m: any, state: any) => {
+      const newQueueHash = state.queueHash;
+      if (newQueueHash !== lastQueueHash) {
+        lastQueueHash = newQueueHash;
+        log.log("queueHash changed", newQueueHash);
+        internalPluginEvents.dispatchEvent(
+          new Event(InternalPluginSubscribeEvents.QUEUE_HASH_DID_CHANGE),
+        );
       }
+    });
 
-      // Explicitly defining our settings element here to avoid issues with module load order
-      customElements.define(
-        customElementName("settings"),
-        defineCustomElement(MySettings, {
-          shadowRoot: false,
-          configureApp,
-        }),
-      );
+    const musickit = useMusicKit();
+    log.log("MusicKit", musickit);
 
-      /**
-       * Defining our custom settings element
-       */
-      this.SettingsElement = customElementName("settings");
+    const toastHost = document.createElement("div");
+    toastHost.id = "ciderjams-toast-root";
+    document.body.appendChild(toastHost);
+    mountInto(JamToastHost, toastHost);
 
-      addCustomButton({
-        element: PLUGIN_CONSTANTS.MENU_BTN_INJECTOR_ID,
-        location: "chrome-top/right",
-        title: "Cider Jams",
-        ctxMenuElement: customElementName("main-modal-view"),
-        menuElement: customElementName("main-modal-view"),
-      });
+    const sharePlayStore = useSharePlayStore();
+    log.log("SharePlay store", sharePlayStore);
+    (window as unknown as { spi: typeof sharePlayStore }).spi = sharePlayStore;
 
-      const cider = useCider();
-      log.log("Cider", cider);
+    subscribeEvent("browser:page_changed", (data) => {
+      log.log("internal event", data);
+    });
 
-      let lastQueueHash: string | null = null;
-      const mkStore = cider.musicKitStore;
-      mkStore.$subscribe((_m: any, state: any) => {
-        const newQueueHash = state.queueHash;
-        if (newQueueHash !== lastQueueHash) {
-          lastQueueHash = newQueueHash;
-          log.log("queueHash changed", newQueueHash);
-          internalPluginEvents.dispatchEvent(new Event(InternalPluginSubscribeEvents.QUEUE_HASH_DID_CHANGE));
-        }
-      });
-
-      const musickit = useMusicKit();
-      log.log("MusicKit", musickit);
-
-      const toastHost = document.createElement("div");
-      toastHost.id = "ciderjams-toast-root";
-      document.body.appendChild(toastHost);
-      mountInto(JamToastHost, toastHost);
-
-      const sharePlayStore = useSharePlayStore();
-      log.log("SharePlay store", sharePlayStore);
-      (window as unknown as { spi: typeof sharePlayStore }).spi =
-        sharePlayStore;
-
-      subscribeEvent("browser:page_changed", (data) => {
-        log.log("internal event", data);
-      });
-
-      musickit.addEventListener(
-        "nowPlayingItemWillChange",
-        ({ item }: { item: any }) => {
-          log.log("Now playing item will change", item);
-        },
-      );
-      musickit.addEventListener(
-        "nowPlayingItemDidChange",
-        ({ item }: { item: any }) => {
-          log.log("Now playing item", item);
-        },
-      );
-    },
-  });
+    musickit.addEventListener("nowPlayingItemWillChange", ({ item }: { item: any }) => {
+      log.log("Now playing item will change", item);
+    });
+    musickit.addEventListener("nowPlayingItemDidChange", ({ item }: { item: any }) => {
+      log.log("Now playing item", item);
+    });
+  },
+});
 
 /**
  * Some boilerplate code for our own configuration

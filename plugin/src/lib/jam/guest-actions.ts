@@ -1,10 +1,8 @@
-import {
-  createLogger,
-  type ClientWireMessage,
-  type QueueStateSchema,
-} from "@ciderjams/proto";
-
 import type { CiderSyncSocket } from "../api";
+
+import { type ClientWireMessage, createLogger, type QueueStateSchema } from "@ciderjams/proto";
+
+import { subscribeMusicKitEvent } from "../../shareplay/musickit-bridge";
 import {
   INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS,
   INTERNAL_PLUGIN_SUBSCRIBE_EVENTS,
@@ -19,7 +17,6 @@ import {
   musicKitQueueCatalogIds,
   playbackPositionMs,
 } from "../musickit/payloads";
-import { subscribeMusicKitEvent } from "../../shareplay/musickit-bridge";
 
 const log = createLogger("plugin", "jam/guest-actions");
 
@@ -65,18 +62,14 @@ export class JamGuestActions {
 
     for (const event of MK_EVENTS) {
       this.mkCleanups.push(
-        subscribeMusicKitEvent(this.music, event, (data) =>
-          this.onMusicKitEvent(event, data),
-        ),
+        subscribeMusicKitEvent(this.music, event, (data) => this.onMusicKitEvent(event, data)),
       );
     }
 
     for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
       const handler = () => this.onPluginQueueEvent(event);
       internalPluginEvents.addEventListener(event, handler);
-      this.pluginCleanups.push(() =>
-        internalPluginEvents.removeEventListener(event, handler),
-      );
+      this.pluginCleanups.push(() => internalPluginEvents.removeEventListener(event, handler));
     }
   }
 
@@ -138,10 +131,7 @@ export class JamGuestActions {
     if (event === "playbackStateDidChange" && data && typeof data === "object") {
       const state = (data as { state?: number }).state;
       if (state === MusicKit.PlaybackStates.playing) return true;
-      if (
-        state === MusicKit.PlaybackStates.paused ||
-        state === MusicKit.PlaybackStates.stopped
-      ) {
+      if (state === MusicKit.PlaybackStates.paused || state === MusicKit.PlaybackStates.stopped) {
         return false;
       }
     }
@@ -213,11 +203,7 @@ export class JamGuestActions {
 
   private onMusicKitEvent(event: string, data?: unknown): void {
     if (this.shouldSuppress()) {
-      if (
-        event === "playbackStateDidChange" ||
-        PLAY_EVENTS.has(event) ||
-        PAUSE_EVENTS.has(event)
-      ) {
+      if (event === "playbackStateDidChange" || PLAY_EVENTS.has(event) || PAUSE_EVENTS.has(event)) {
         this.lastEmittedPlaying = this.music.isPlaying;
       }
       if (event === "queuePositionDidChange") {
@@ -234,11 +220,7 @@ export class JamGuestActions {
       return;
     }
 
-    if (
-      PLAY_EVENTS.has(event) ||
-      PAUSE_EVENTS.has(event) ||
-      event === "playbackStateDidChange"
-    ) {
+    if (PLAY_EVENTS.has(event) || PAUSE_EVENTS.has(event) || event === "playbackStateDidChange") {
       this.schedulePlaybackFlush(event, data);
       return;
     }

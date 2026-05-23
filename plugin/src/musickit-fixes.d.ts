@@ -7,7 +7,7 @@
  *
  * Use `MusicKit.MusicKitInstanceLoose` where `getInstance().player` may be missing, then narrow.
  */
-export { };
+export {};
 
 declare global {
   namespace MusicKit {

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import CComponent from "@ciderapp/pluginkit/vue/CComponent.vue";
 
-import JamMemberListItem from "../../shared/JamMemberListItem.vue";
-import ModalHeader from "../../shared/ModalHeader.vue";
-
 import { log } from "../../../lib/logger";
 import { showJamAlert } from "../../../lib/notifications";
 import { useJamStore } from "../../../stores/main";
+import JamMemberListItem from "../../shared/JamMemberListItem.vue";
+import ModalHeader from "../../shared/ModalHeader.vue";
 
 const jamStore = useJamStore();
 
@@ -39,14 +38,14 @@ const joinJam = async () => {
     <hr class="ciderjams-divider" />
 
     <div class="ciderjams-buttons">
-      <button class="c-btn primary" @click="createJam">
+      <button type="button" class="c-btn primary" @click="createJam">
         Create session
       </button>
 
       <div class="ciderjams-input-container">
         <input type="text" class="c-input ciderjams-input" placeholder="Enter session code" v-model="roomCode" @keyup.enter="joinJam" />
 
-        <button class="ciderjams-join-button" @click="joinJam">
+        <button type="button" class="ciderjams-join-button" @click="joinJam">
           <CComponent
             name="NIcon"
             :componentProps="{

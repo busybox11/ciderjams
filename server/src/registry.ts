@@ -1,5 +1,7 @@
-import type { roomParticipant, RoomCreatePayload } from "@ciderjams/proto";
+import type { RoomCreatePayload, roomParticipant } from "@ciderjams/proto";
+
 import { randomBytes } from "node:crypto";
+
 import { Room } from "./room";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -13,7 +15,8 @@ function randomRoomCode(length = 6): string {
   let code = "";
 
   for (let i = 0; i < length; i++) {
-    code += CODE_ALPHABET[bytes[i]! % CODE_ALPHABET.length]!;
+    const byte = bytes[i] ?? 0;
+    code += CODE_ALPHABET[byte % CODE_ALPHABET.length];
   }
 
   return code;
@@ -23,10 +26,7 @@ export class RoomRegistry {
   readonly byId = new Map<string, Room>();
   readonly codeToId = new Map<string, string>();
 
-  createRoom(
-    host: roomParticipant,
-    playbackState: RoomCreatePayload["playbackState"],
-  ): Room {
+  createRoom(host: roomParticipant, playbackState: RoomCreatePayload["playbackState"]): Room {
     const roomId = newRoomId();
     let code = randomRoomCode();
     while (this.codeToId.has(code)) code = randomRoomCode();

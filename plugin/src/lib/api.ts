@@ -1,9 +1,9 @@
 import type { ClientWireMessage, roomParticipant } from "@ciderjams/proto";
-import { clientWireMessageSchema } from "@ciderjams/proto";
 import type { App } from "@ciderjams/server/app";
-import { treaty, type Treaty } from "@elysia/eden";
 
-import { createLogger } from "@ciderjams/proto";
+import { type Treaty, treaty } from "@elysia/eden";
+
+import { clientWireMessageSchema, createLogger } from "@ciderjams/proto";
 
 const log = createLogger("plugin", "api");
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { roomParticipant } from '@ciderjams/proto';
+
 import { useJamStore } from '../../stores/main';
 
 const jamStore = useJamStore();
@@ -14,7 +15,7 @@ const isHost = computed(() => currentJam.value?.hostUserId === props.member.user
 
 <template>
   <div class="ciderjams-identity">
-    <img :src="member.avatar" class="ciderjams-identity-avatar" />
+    <img :src="member.avatar" :alt="member.name" class="ciderjams-identity-avatar" />
     <div class="ciderjams-identity-info">
       <span class="ciderjams-identity-name">{{ member.name }}</span>
       <div class="ciderjams-identity-username-container">

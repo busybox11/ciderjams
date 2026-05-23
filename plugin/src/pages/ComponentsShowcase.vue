@@ -169,8 +169,6 @@ onMounted(async () => {
     position: relative;
 }
 
-.section-details {}
-
 .section-title {
     background: var(--keyColor);
     padding: 12px;

@@ -1,19 +1,19 @@
-import { CatalogItemId, createLogger } from "@ciderjams/proto";
-import type {
-  ISharePlayGuestAdapter,
-  SharePlayGuestAdapterHooks,
-} from "./adapter";
+import type { ISharePlayGuestAdapter, SharePlayGuestAdapterHooks } from "./adapter";
+import type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
+
+import { type CatalogItemId, createLogger } from "@ciderjams/proto";
+
 import { mockSharePlayData } from "./mock";
 import {
   getMusicKitAppDispatcher,
+  type MusicKitWithCiderSharePlay,
   patchMusicKitQueue,
   subscribeDispatcher,
-  type MusicKitWithCiderSharePlay,
 } from "./musickit-bridge";
-import type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
+
+export type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
 
 export * from "./adapter";
-export type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
 
 const log = createLogger("plugin", "shareplay");
 
@@ -24,10 +24,7 @@ export interface SharePlayHooks {
 }
 
 export class SharePlayInhibitor implements ISharePlayGuestAdapter {
-  private originalMethods = new Map<
-    string,
-    { obj: unknown; prop: string; original: unknown }
-  >();
+  private originalMethods = new Map<string, { obj: unknown; prop: string; original: unknown }>();
   private music: MusicKitWithCiderSharePlay | null = null;
   private dispatcherCleanups: (() => void)[] = [];
   private currentHooks: SharePlayGuestAdapterHooks;
@@ -71,8 +68,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       lastKnownElapsedTime: 0,
     };
 
-    const playActivity = (mk as MusicKit.MusicKitInstance).services
-      ?.playActivity as
+    const playActivity = (mk as MusicKit.MusicKitInstance).services?.playActivity as
       | { handleEvent?: (a: string, b: unknown) => unknown }
       | undefined;
     if (playActivity?.handleEvent) {
@@ -93,24 +89,18 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     const dispatcher = getMusicKitAppDispatcher(this.music);
     if (dispatcher) {
       this.dispatcherCleanups.push(
-        subscribeDispatcher(dispatcher, "sharePlay.nextItem", () =>
-          log.debug("nextItem"),
-        ),
-        subscribeDispatcher(dispatcher, "sharePlay.previousItem", () =>
-          log.debug("previousItem"),
-        ),
+        subscribeDispatcher(dispatcher, "sharePlay.nextItem", () => log.debug("nextItem")),
+        subscribeDispatcher(dispatcher, "sharePlay.previousItem", () => log.debug("previousItem")),
       );
     }
 
-    const forceSkip = async (
-      original: (...args: unknown[]) => Promise<unknown>,
-    ) => {
+    const music = this.music;
+    const forceSkip = async (original: (...args: unknown[]) => Promise<unknown>) => {
       log.debug("forceSkip");
-      const m = this.music!;
-      const prevMode = m.playbackMode;
-      m.playbackMode = 1;
+      const prevMode = music.playbackMode;
+      music.playbackMode = 1;
       await original();
-      m.playbackMode = prevMode;
+      music.playbackMode = prevMode;
     };
 
     this.patch(this.music, "skipToNextItem", forceSkip);
@@ -162,10 +152,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     const key = `${(obj as { constructor?: { name?: string } }).constructor?.name ?? "object"}::${prop}`;
     this.originalMethods.set(key, { obj, prop, original });
     (obj as Record<string, unknown>)[prop] = (...args: unknown[]) =>
-      wrapper(
-        original.bind(obj) as (...a: unknown[]) => Promise<unknown>,
-        ...args,
-      );
+      wrapper(original.bind(obj) as (...a: unknown[]) => Promise<unknown>, ...args);
   }
 
   private isStaleSync(gen: number): boolean {
@@ -191,9 +178,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
   }
 
   public isSuppressingGuestActions(): boolean {
-    return (
-      this.applyingServerSync || Date.now() < this.suppressGuestActionsUntil
-    );
+    return this.applyingServerSync || Date.now() < this.suppressGuestActionsUntil;
   }
 
   /** Ignore local MusicKit control events while applying server state. */
@@ -205,9 +190,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
   }
 
   private getQueueCatalogIds(queue: SharePlaySyncInput["queue"]): string[] {
-    return queue.map(
-      (item) => item.attributes?.playParams?.catalogId ?? item.id,
-    );
+    return queue.map((item) => item.attributes?.playParams?.catalogId ?? item.id);
   }
 
   private isSameQueueOrder(a: string[], b: string[]): boolean {
@@ -221,9 +204,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     return sortedA.every((id, i) => id === sortedB[i]);
   }
 
-  private dedupeServerQueue(
-    queue: SharePlaySyncInput["queue"],
-  ): SharePlaySyncInput["queue"] {
+  private dedupeServerQueue(queue: SharePlaySyncInput["queue"]): SharePlaySyncInput["queue"] {
     return queue
       .map((item) => ({
         ...item,
@@ -237,10 +218,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
           },
         },
       }))
-      .filter(
-        (item, index, self) =>
-          self.findIndex((t) => t.id === item.id) === index,
-      );
+      .filter((item, index, self) => self.findIndex((t) => t.id === item.id) === index);
   }
 
   private async applyServerSyncQueue(
@@ -254,10 +232,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     didApplyPlaybackPosition: boolean;
   } | null> {
     const catalogIds = this.getQueueCatalogIds(dedupedQueue);
-    if (
-      this.lastServerQueueIds &&
-      this.isSameQueueOrder(this.lastServerQueueIds, catalogIds)
-    ) {
+    if (this.lastServerQueueIds && this.isSameQueueOrder(this.lastServerQueueIds, catalogIds)) {
       log.debug("queue order unchanged, skipping queue sync");
       return {
         queueChanged: false,
@@ -267,8 +242,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     }
 
     const priorQueueIds = this.lastServerQueueIds;
-    const reorderOnly =
-      !!priorQueueIds && this.isSameQueueItems(priorQueueIds, catalogIds);
+    const reorderOnly = !!priorQueueIds && this.isSameQueueItems(priorQueueIds, catalogIds);
 
     let instantiatedQueue: MusicKit.MediaItem[];
     if (reorderOnly) {
@@ -288,12 +262,12 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     }
 
     if (reorderOnly) {
-      log.debug("queue reorder only", instantiatedQueue.map((item) => item.id));
-    } else {
       log.debug(
-        "preloading room queue MediaItem instances with metadata",
-        dedupedQueue,
+        "queue reorder only",
+        instantiatedQueue.map((item) => item.id),
       );
+    } else {
+      log.debug("preloading room queue MediaItem instances with metadata", dedupedQueue);
     }
 
     log.assert(
@@ -311,23 +285,13 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     const targetPlayingId = instantiatedQueue[playingIndex]?.id;
     const currentPlayingId = music.nowPlayingItem?.id;
     const canPatchInPlace =
-      music.queue.isInitiated &&
-      music.queue.length > 0 &&
-      (music.nowPlayingItemIndex ?? -1) >= 0;
+      music.queue.isInitiated && music.queue.length > 0 && (music.nowPlayingItemIndex ?? -1) >= 0;
 
     if (canPatchInPlace) {
       log.debug("patching queue in place (updateItems)", { playingIndex });
-      const { didMovePosition } = patchMusicKitQueue(
-        music.queue,
-        instantiatedQueue,
-        playingIndex,
-      );
+      const { didMovePosition } = patchMusicKitQueue(music.queue, instantiatedQueue, playingIndex);
       let didApplyPlaybackPosition = didMovePosition;
-      if (
-        targetPlayingId &&
-        currentPlayingId !== targetPlayingId &&
-        playingIndex >= 0
-      ) {
+      if (targetPlayingId && currentPlayingId !== targetPlayingId && playingIndex >= 0) {
         log.debug("server now-playing changed, changeToMediaAtIndex", {
           from: currentPlayingId,
           to: targetPlayingId,
@@ -375,8 +339,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
   ): MusicKit.MediaItem[] | null {
     const byCatalogId = new Map<string, MusicKit.MediaItem>();
     for (const { item } of music.queue._queueItems) {
-      const catalogId =
-        item.attributes?.playParams?.catalogId ?? String(item.id);
+      const catalogId = item.attributes?.playParams?.catalogId ?? String(item.id);
       byCatalogId.set(catalogId, item);
     }
 
@@ -398,18 +361,23 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     const existingQueue = music.queue._queueItems.map((item) => item.item);
 
     // create map of instantiated items by catalogId
-    let instanciatedItemsMap = new Map<string, MusicKit.MediaItem>();
-    let newItems: CatalogItemId[] = [];
+    const instanciatedItemsMap = new Map<string, MusicKit.MediaItem>();
+    const newItems: CatalogItemId[] = [];
 
     for (const item of queue) {
-      const existingItem = existingQueue.find((existing) => existing.id === item.attributes?.playParams?.catalogId);
+      const existingItem = existingQueue.find(
+        (existing) => existing.id === item.attributes?.playParams?.catalogId,
+      );
       if (existingItem) {
         instanciatedItemsMap.set(item.attributes?.playParams?.catalogId ?? item.id, existingItem);
       } else {
         newItems.push(item.attributes?.playParams?.catalogId ?? item.id);
       }
     }
-    log.debug("reusing existing items", existingQueue.map((item) => item.id));
+    log.debug(
+      "reusing existing items",
+      existingQueue.map((item) => item.id),
+    );
 
     // uses undocumented internal MusicKitInstance.loadItems method
     // preload instanciated items with full metadata into the queue
@@ -420,10 +388,13 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       songs: newItems,
     });
     if (this.isStaleSync(gen)) return [];
-    log.debug("instantiated new items", instantiatedNewItems.map((item) => item.id));
+    log.debug(
+      "instantiated new items",
+      instantiatedNewItems.map((item) => item.id),
+    );
 
     // merge instantiated new items with existing queue
-    let instantiatedQueue: MusicKit.MediaItem[] = [];
+    const instantiatedQueue: MusicKit.MediaItem[] = [];
     for (const newItem of instantiatedNewItems) {
       instanciatedItemsMap.set(newItem.id, newItem);
     }
@@ -433,7 +404,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
 
       const instantiatedItem = instanciatedItemsMap.get(qId);
       if (!instantiatedItem) throw new Error(`instantiated item not found for queue item ${qId}`);
-      
+
       instantiatedQueue.push(instantiatedItem);
     }
 
@@ -465,18 +436,10 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     }
 
     const serverPlayingItemId =
-      serverData.queue[serverData.index ?? serverData.currentPlayingIndex ?? 0]
-        ?.id;
-    const playingIndex = dedupedQueue.findIndex(
-      (item) => item.id === serverPlayingItemId,
-    );
+      serverData.queue[serverData.index ?? serverData.currentPlayingIndex ?? 0]?.id;
+    const playingIndex = dedupedQueue.findIndex((item) => item.id === serverPlayingItemId);
 
-    const queueResult = await this.applyServerSyncQueue(
-      music,
-      dedupedQueue,
-      playingIndex,
-      gen,
-    );
+    const queueResult = await this.applyServerSyncQueue(music, dedupedQueue, playingIndex, gen);
     if (!queueResult || this.isStaleSync(gen)) return;
 
     const {
@@ -523,11 +486,7 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
         if (this.isStaleSync(gen)) return;
         if (!music.isPlaying) await music.play();
         if (this.isStaleSync(gen)) return;
-        if (
-          didApplyPlaybackPosition &&
-          serverData.elapsedTime &&
-          serverData.elapsedTime > 0
-        ) {
+        if (didApplyPlaybackPosition && serverData.elapsedTime && serverData.elapsedTime > 0) {
           await music.seekToTime(seekSeconds);
           if (this.isStaleSync(gen)) return;
         }
@@ -557,18 +516,14 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     };
 
     const expectedSongId =
-      instantiatedQueue[playingIndex]?.id != null
-        ? String(instantiatedQueue[playingIndex].id)
-        : "";
+      instantiatedQueue[playingIndex]?.id != null ? String(instantiatedQueue[playingIndex].id) : "";
 
     const refocusIfWrongItem = async (phase: string) => {
       if (this.isStaleSync(gen)) return;
       const np = music.nowPlayingItem;
       const got = np?.id != null ? String(np.id) : "";
       if (expectedSongId && got !== expectedSongId) {
-        log.warn(
-          `wrong nowPlaying (${phase}), got=${got}, want=${expectedSongId}`,
-        );
+        log.warn(`wrong nowPlaying (${phase}), got=${got}, want=${expectedSongId}`);
         await resyncPlayback();
         if (this.isStaleSync(gen)) return;
       }

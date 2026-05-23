@@ -1,9 +1,15 @@
 import * as z from "zod";
 
 /* MusicKit like shapes */
-export const CatalogItemId = z.string().regex(/^[0-9]+$/).describe("Apple Music catalog item ID");
+export const CatalogItemId = z
+  .string()
+  .regex(/^[0-9]+$/)
+  .describe("Apple Music catalog item ID");
 export type CatalogItemId = z.infer<typeof CatalogItemId>;
-export const LibraryItemId = z.string().regex(/^i\.[A-Za-z0-9]+$/).describe("Apple Music library item ID. Should not be used in rooms");
+export const LibraryItemId = z
+  .string()
+  .regex(/^i\.[A-Za-z0-9]+$/)
+  .describe("Apple Music library item ID. Should not be used in rooms");
 export type LibraryItemId = z.infer<typeof LibraryItemId>;
 
 export const playbackState = z.enum([
@@ -14,11 +20,7 @@ export const playbackState = z.enum([
 ]);
 export type playbackState = z.infer<typeof playbackState>;
 
-export const playerRepeatMode = z.enum([
-  "REPEAT_ALL",
-  "REPEAT_OFF",
-  "REPEAT_ONE",
-]);
+export const playerRepeatMode = z.enum(["REPEAT_ALL", "REPEAT_OFF", "REPEAT_ONE"]);
 export type PlayerRepeatMode = z.infer<typeof playerRepeatMode>;
 
 export const playerShuffleMode = z.enum(["SHUFFLE_OFF", "SHUFFLE_ON"]);

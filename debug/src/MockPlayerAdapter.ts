@@ -1,7 +1,4 @@
-import type {
-  ISharePlayGuestAdapter,
-  SharePlayGuestAdapterHooks,
-} from "@shareplay/adapter";
+import type { ISharePlayGuestAdapter, SharePlayGuestAdapterHooks } from "@shareplay/adapter";
 import type { SharePlaySyncInput } from "@shareplay/types";
 
 import { createLogger } from "@ciderjams/proto";

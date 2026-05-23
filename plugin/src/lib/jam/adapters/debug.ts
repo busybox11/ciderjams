@@ -1,19 +1,19 @@
+import type { JamHostPlayerAdapter } from "../player-adapter";
+
 import {
-  parsePayload,
-  playerHostSyncPayload,
-  queueSetPayload,
-  roomCreatePayload,
-  type playbackState,
   type PlayerHostSyncPayload,
   type PlayerRepeatMode,
   type PlayerShuffleMode,
   type PlayerStateSchema,
+  parsePayload,
+  type playbackState,
+  playerHostSyncPayload,
   type QueueSetPayload,
   type QueueStateSchema,
+  queueSetPayload,
   type RoomCreatePayload,
+  roomCreatePayload,
 } from "@ciderjams/proto";
-
-import type { JamHostPlayerAdapter } from "../player-adapter";
 
 const roomCreatePlaybackSchema = roomCreatePayload.shape.playbackState;
 const roomSyncPlaybackSchema = playerHostSyncPayload.shape.playbackState;
@@ -70,10 +70,7 @@ export class DebugJamHostPlayerAdapter implements JamHostPlayerAdapter {
   applyServerPlayerState(p: PlayerStateSchema): void {
     if (this.catalogIds.length === 0) return;
     const last = this.catalogIds.length - 1;
-    this.currentPlayingIndex = Math.min(
-      Math.max(0, p.currentPlayingIndex),
-      last,
-    );
+    this.currentPlayingIndex = Math.min(Math.max(0, p.currentPlayingIndex), last);
     this.elapsedTimeMs = Math.max(0, p.elapsedTimeMs);
     this.isPlaying = p.isPlaying;
     this.repeatMode = p.repeatMode;
@@ -87,10 +84,7 @@ export class DebugJamHostPlayerAdapter implements JamHostPlayerAdapter {
 
   private clampIndex(): number {
     if (this.catalogIds.length === 0) return 0;
-    return Math.min(
-      Math.max(0, this.currentPlayingIndex),
-      this.catalogIds.length - 1,
-    );
+    return Math.min(Math.max(0, this.currentPlayingIndex), this.catalogIds.length - 1);
   }
 
   private baseRoomPlayback(): RoomCreatePayload["playbackState"] {
@@ -141,10 +135,6 @@ export class DebugJamHostPlayerAdapter implements JamHostPlayerAdapter {
       isPlaying: this.isPlaying,
       autoPlay: this.autoPlay,
     };
-    return parsePayload(
-      roomSyncPlaybackSchema,
-      payload,
-      "debug player.host.sync playbackState",
-    );
+    return parsePayload(roomSyncPlaybackSchema, payload, "debug player.host.sync playbackState");
   }
 }

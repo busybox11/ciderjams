@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, onUnmounted } from "vue";
 import type { PlayerStateSchema, QueueStateSchema } from "@ciderjams/proto";
-import { serverWireMessageSchema } from "@ciderjams/proto";
-import { jamPlaybackToSharePlayPayload } from "@plugin/lib/jam/from-server";
 import type { SharePlayPublishedMediaState } from "@shareplay/types";
+
+import { onMounted, onUnmounted, ref, shallowRef } from "vue";
+
+import { serverWireMessageSchema } from "@ciderjams/proto";
+
+import { jamPlaybackToSharePlayPayload } from "@plugin/lib/jam/from-server";
+
 import { MockGuestAdapter } from "../MockPlayerAdapter";
 
 const adapter = new MockGuestAdapter();

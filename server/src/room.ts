@@ -1,23 +1,23 @@
+import { randomBytes } from "node:crypto";
+
 import {
-  playerStateSchema,
-  queueStateSchema,
-  roomMeta as roomMetaSchema,
-  roomStateSchema,
   type BasePlaybackState,
+  createLogger,
   type PlayerRepeatMode,
   type PlayerShuffleMode,
   type PlayerStateSchema,
-  type queueEntry,
+  playerStateSchema,
   type QueueSetPayload,
   type QueueStateSchema,
+  type queueEntry,
+  queueStateSchema,
   type RoomCreatePayload,
-  type roomMeta,
-  type roomParticipant,
   type RoomStateSchema,
+  type roomMeta,
+  roomMeta as roomMetaSchema,
+  type roomParticipant,
+  roomStateSchema,
 } from "@ciderjams/proto";
-import { randomBytes } from "node:crypto";
-
-import { createLogger } from "@ciderjams/proto";
 
 const log = createLogger("server", "room");
 
@@ -36,7 +36,7 @@ function minRoomStateLog(state: BasePlaybackState): void {
     state.currentPlayingIndex,
     playingItemId,
     `${state.elapsedTimeMs}ms`,
-    state.playbackState
+    state.playbackState,
   ]);
 }
 
@@ -219,7 +219,7 @@ export class Room {
 
   setRepeat(userId: string, mode: PlayerRepeatMode): void {
     this.assertParticipant(userId);
-    
+
     this.#patchState({ repeatMode: mode });
   }
 

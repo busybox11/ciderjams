@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { DialogAPI, useCider } from "@ciderapp/pluginkit";
 import { computed } from "vue";
+
+import { DialogAPI, useCider } from "@ciderapp/pluginkit";
+
 import HelloWorld from "../components/MainModal/MainModalView.vue";
 
 const openComponentDialog = () => {
@@ -22,7 +24,7 @@ const cfg = computed(() => {
     <p>This is a custom page. You can add your own content here.</p>
     <HelloWorld></HelloWorld>
 
-    <button class="c-btn" @click="openComponentDialog">
+    <button type="button" class="c-btn" @click="openComponentDialog">
       Show component based modal
     </button>
   </div>

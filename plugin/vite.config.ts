@@ -28,7 +28,7 @@ export default defineConfig({
       },
     }),
     {
-      async buildStart(options) {
+      async buildStart() {
         console.log("Building plugin...");
         // create a plugin.json in assets
         this.emitFile({

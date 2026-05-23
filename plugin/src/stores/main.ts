@@ -1,35 +1,31 @@
-import { useMusicKit } from "@ciderapp/pluginkit";
-import { defineStore } from "pinia";
-import { ref, shallowRef } from "vue";
-
 import type {
   PlayerStateSchema,
   QueueStateSchema,
-  roomParticipant,
   RoomStateSchema,
+  roomParticipant,
 } from "@ciderjams/proto";
+
+import { defineStore } from "pinia";
+import { ref, shallowRef } from "vue";
+
 import { outboundWsMessageSchema } from "@ciderjams/proto";
-import { ciderSyncSocket, type CiderSyncSocket } from "../lib/api";
+
+import { useMusicKit } from "@ciderapp/pluginkit";
+
+import { type CiderSyncSocket, ciderSyncSocket } from "../lib/api";
 import {
   MusicKitJamHostPlayerAdapter,
   MusicKitJamHostSyncSource,
 } from "../lib/jam/adapters/musickit";
-import {
-  createJamInboundSync,
-  jamPlaybackToSharePlayPayload,
-} from "../lib/jam/from-server";
+import { createJamInboundSync, jamPlaybackToSharePlayPayload } from "../lib/jam/from-server";
 import { JamGuestActions } from "../lib/jam/guest-actions";
 import {
+  type JamHostSessionHandle,
   startJamHostSession,
   waitForWebSocketOpen,
-  type JamHostSessionHandle,
 } from "../lib/jam/session";
 import { log } from "../lib/logger";
-import {
-  jamErrorMessage,
-  showJamAlert,
-  showJamMemberEvent,
-} from "../lib/notifications";
+import { jamErrorMessage, showJamAlert, showJamMemberEvent } from "../lib/notifications";
 import { useSharePlayStore } from "./shareplay";
 
 export const useJamStore = defineStore("jam-store", () => {
@@ -45,8 +41,7 @@ export const useJamStore = defineStore("jam-store", () => {
   const isHost = () => jamHostSession.value !== null;
 
   const inboundSync = createJamInboundSync({
-    getMusicKit: () =>
-      MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose | null,
+    getMusicKit: () => MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose | null,
     getQueue: () => lastQueueState.value,
     getPlayer: () => lastPlayerState.value,
     isHost,
@@ -58,9 +53,9 @@ export const useJamStore = defineStore("jam-store", () => {
     applyQueueViaSharePlay(queue, player) {
       const share = useSharePlayStore();
       if (!share.inhibitor) return Promise.resolve();
-      return share.syncFromServer(
-        jamPlaybackToSharePlayPayload(queue, player),
-      )!;
+      return (
+        share.syncFromServer(jamPlaybackToSharePlayPayload(queue, player)) ?? Promise.resolve()
+      );
     },
   });
 
@@ -84,10 +79,7 @@ export const useJamStore = defineStore("jam-store", () => {
   function onSocketMessage(data: unknown) {
     const parsed = outboundWsMessageSchema.safeParse(data);
     if (!parsed.success) {
-      log.warn(
-        "Jam socket: bad inbound frame",
-        parsed.error.issues.slice(0, 3),
-      );
+      log.warn("Jam socket: bad inbound frame", parsed.error.issues.slice(0, 3));
       return;
     }
     log.debug("onSocketMessage", parsed.data);
@@ -130,9 +122,7 @@ export const useJamStore = defineStore("jam-store", () => {
     pendingRoomJoin.value = false;
 
     if (prev) {
-      const hostGone =
-        !isHost() &&
-        !payload.participants.some((p) => p.userId === prev.hostUserId);
+      const hostGone = !isHost() && !payload.participants.some((p) => p.userId === prev.hostUserId);
       if (hostGone) {
         showJamAlert("The host ended the listening session.", "Session ended");
         leaveJam();
@@ -144,10 +134,7 @@ export const useJamStore = defineStore("jam-store", () => {
     currentJam.value = payload;
   }
 
-  function notifyParticipantChanges(
-    prev: RoomStateSchema,
-    next: RoomStateSchema,
-  ) {
+  function notifyParticipantChanges(prev: RoomStateSchema, next: RoomStateSchema) {
     const me = identity.value?.userId;
     const prevIds = new Set(prev.participants.map((p) => p.userId));
     const nextIds = new Set(next.participants.map((p) => p.userId));
@@ -159,11 +146,7 @@ export const useJamStore = defineStore("jam-store", () => {
     }
 
     for (const p of prev.participants) {
-      if (
-        !nextIds.has(p.userId) &&
-        p.userId !== me &&
-        p.userId !== prev.hostUserId
-      ) {
+      if (!nextIds.has(p.userId) && p.userId !== me && p.userId !== prev.hostUserId) {
         showJamMemberEvent(`${p.name} left the session.`, "Member left");
       }
     }
@@ -254,9 +237,7 @@ export const useJamStore = defineStore("jam-store", () => {
       const resource = result as { id?: string };
 
       // TODO: remove this - only for multi platform debug
-      const isLinux = window.navigator.userAgent
-        .toLowerCase()
-        .includes("linux");
+      const isLinux = window.navigator.userAgent.toLowerCase().includes("linux");
 
       if (isLinux) {
         identity.value = {
@@ -266,8 +247,7 @@ export const useJamStore = defineStore("jam-store", () => {
               : `handle:${handle}-linux`,
           name: `${result.attributes.name} (Linux)`,
           handle: `${handle}-linux`,
-          avatar:
-            "https://pbs.twimg.com/profile_images/1994727967587528704/p5QVaU0q_400x400.jpg",
+          avatar: "https://pbs.twimg.com/profile_images/1994727967587528704/p5QVaU0q_400x400.jpg",
         };
         return;
       }
@@ -279,11 +259,10 @@ export const useJamStore = defineStore("jam-store", () => {
             : `handle:${handle}`,
         name: result.attributes.name,
         handle,
-        avatar: MusicKit.formatArtworkURL(
-          result.attributes.artwork,
-          64,
-          64,
-        ).replace("{c}", ".webp"),
+        avatar: MusicKit.formatArtworkURL(result.attributes.artwork, 64, 64).replace(
+          "{c}",
+          ".webp",
+        ),
       };
     } catch (error) {
       log.error("Failed to fetch identity:", error);

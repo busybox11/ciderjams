@@ -1,7 +1,8 @@
 import type { PlayerStateSchema, QueueStateSchema } from "@ciderjams/proto";
+import type { SharePlaySyncInput } from "../../shareplay/types";
+
 import { createLogger } from "@ciderjams/proto";
 
-import type { SharePlaySyncInput } from "../../shareplay/types";
 import {
   applyRepeatModeToMusicKit,
   applyShuffleModeToMusicKit,
@@ -23,9 +24,7 @@ function sharePlayPlaybackNumber(player: PlayerStateSchema): number {
     : 0;
 }
 
-function sharePlayRepeatNumber(
-  repeatMode: PlayerStateSchema["repeatMode"],
-): number {
+function sharePlayRepeatNumber(repeatMode: PlayerStateSchema["repeatMode"]): number {
   const m: Record<PlayerStateSchema["repeatMode"], number> = {
     REPEAT_OFF: 0,
     REPEAT_ALL: 1,
@@ -34,9 +33,7 @@ function sharePlayRepeatNumber(
   return m[repeatMode] ?? 0;
 }
 
-function sharePlayShuffleNumber(
-  shuffleMode: PlayerStateSchema["shuffleMode"],
-): number {
+function sharePlayShuffleNumber(shuffleMode: PlayerStateSchema["shuffleMode"]): number {
   return shuffleMode === "SHUFFLE_ON" ? 1 : 0;
 }
 
@@ -130,10 +127,7 @@ export type JamInboundSyncOptions = {
   isHost: () => boolean;
   /** suppress echo from local MK while applying server snapshots */
   suppressLocalSync: (durationMs?: number) => void;
-  applyQueueViaSharePlay: (
-    queue: QueueStateSchema,
-    player: PlayerStateSchema,
-  ) => Promise<void>;
+  applyQueueViaSharePlay: (queue: QueueStateSchema, player: PlayerStateSchema) => Promise<void>;
 };
 
 /** Applies latest server queue/player snapshots one at a time. */

@@ -1,23 +1,20 @@
 import {
-  parsePayload,
-  PlayerHostSyncPayload,
-  playerHostSyncPayload,
-  queueSetPayload,
-  roomCreatePayload,
+  createLogger,
+  type PlayerHostSyncPayload,
   type PlayerStateSchema,
+  parsePayload,
+  playerHostSyncPayload,
   type QueueSetPayload,
   type QueueStateSchema,
+  queueSetPayload,
   type RoomCreatePayload,
+  roomCreatePayload,
   type SchemaInput,
 } from "@ciderjams/proto";
 
-import { createLogger } from "@ciderjams/proto";
-
 const log = createLogger("plugin", "lib/musickit/payloads");
 
-function mapPlaybackState(
-  state: MusicKit.PlaybackStates,
-): PlayerStateSchema["playbackState"] {
+function mapPlaybackState(state: MusicKit.PlaybackStates): PlayerStateSchema["playbackState"] {
   switch (state) {
     case MusicKit.PlaybackStates.playing:
     case MusicKit.PlaybackStates.paused:
@@ -30,27 +27,16 @@ function mapPlaybackState(
   }
 }
 
-export function mapRepeatMode(
-  mode: MusicKit.PlayerRepeatMode,
-): PlayerStateSchema["repeatMode"] {
-  const modes: PlayerStateSchema["repeatMode"][] = [
-    "REPEAT_OFF",
-    "REPEAT_ALL",
-    "REPEAT_ONE",
-  ];
+export function mapRepeatMode(mode: MusicKit.PlayerRepeatMode): PlayerStateSchema["repeatMode"] {
+  const modes: PlayerStateSchema["repeatMode"][] = ["REPEAT_OFF", "REPEAT_ALL", "REPEAT_ONE"];
   return modes[mode] ?? "REPEAT_OFF";
 }
 
-export function mapShuffleMode(
-  mode: MusicKit.PlayerShuffleMode,
-): PlayerStateSchema["shuffleMode"] {
+export function mapShuffleMode(mode: MusicKit.PlayerShuffleMode): PlayerStateSchema["shuffleMode"] {
   return mode === 1 ? "SHUFFLE_ON" : "SHUFFLE_OFF";
 }
 
-const REPEAT_MODE_TO_MK: Record<
-  PlayerStateSchema["repeatMode"],
-  MusicKit.PlayerRepeatMode
-> = {
+const REPEAT_MODE_TO_MK: Record<PlayerStateSchema["repeatMode"], MusicKit.PlayerRepeatMode> = {
   REPEAT_OFF: 0,
   REPEAT_ALL: 1,
   REPEAT_ONE: 2,
@@ -72,9 +58,7 @@ export function applyShuffleModeToMusicKit(
   if ((music.shuffleMode ?? 0) !== next) music.shuffleMode = next;
 }
 
-export function playbackPositionMs(
-  music: MusicKit.MusicKitInstanceLoose,
-): number {
+export function playbackPositionMs(music: MusicKit.MusicKitInstanceLoose): number {
   const sec = music.currentPlaybackTime ?? 0;
   return Math.max(0, Math.round(sec * 1000));
 }
@@ -89,9 +73,7 @@ export function getItemCatalogId(item: MusicKit.MediaItem): string {
   return item.attributes?.playParams?.catalogId ?? item.id;
 }
 
-export function musicKitQueueCatalogIds(
-  music: MusicKit.MusicKitInstanceLoose,
-): string[] {
+export function musicKitQueueCatalogIds(music: MusicKit.MusicKitInstanceLoose): string[] {
   return music.queue._queueItems.map((row) => getItemCatalogId(row.item));
 }
 
@@ -158,11 +140,7 @@ export function makeQueuePayload(
 
     log.debug("queue items", queueItems);
 
-    return parsePayload(
-      roomCreateQueueSchema,
-      queueItems,
-      "Failed to create queue state payload",
-    );
+    return parsePayload(roomCreateQueueSchema, queueItems, "Failed to create queue state payload");
   }
 
   const pools = buildJamEntryPools(jamQueue);
@@ -179,11 +157,7 @@ export function makeQueuePayload(
 
   log.debug("queue items", queueItems);
 
-  return parsePayload(
-    queueSetPayload,
-    queueItems,
-    "Failed to create queue state payload",
-  );
+  return parsePayload(queueSetPayload, queueItems, "Failed to create queue state payload");
 }
 
 const roomSyncPlaybackStateSchema = playerHostSyncPayload.shape.playbackState;

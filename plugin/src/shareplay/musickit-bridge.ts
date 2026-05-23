@@ -33,7 +33,7 @@ export type MusicKitWithCiderSharePlay = MusicKit.MusicKitInstanceLoose & {
 /**
  * Replace queue rows without setQueue/replaceQueue (which stops playback).
  * Prefer this over internal MKI.updateQueue which is designed for SharePlay voidPlayer usage
-*/
+ */
 export function patchMusicKitQueue(
   queue: MusicKitMutableQueue,
   items: MusicKit.MediaItem[],
@@ -80,9 +80,7 @@ export function subscribeDispatcher(
 }
 
 /** One handler invocation per event per tick (dispatcher + addEventListener often both fire). */
-function coalesceMusicKitHandler(
-  handler: (data: unknown) => void,
-): (data: unknown) => void {
+function coalesceMusicKitHandler(handler: (data: unknown) => void): (data: unknown) => void {
   let pending = false;
   let lastData: unknown;
   return (data: unknown) => {
@@ -117,7 +115,7 @@ export function subscribeMusicKitEvent(
   music.addEventListener(event, coalesced);
   cleanups.push(() => {
     const mk = music as MusicKit.MusicKitInstanceLoose & {
-      removeEventListener?: (name: string, callback: Function) => void;
+      removeEventListener?: (name: string, callback: (data: unknown) => void) => void;
     };
     mk.removeEventListener?.(event, coalesced);
   });

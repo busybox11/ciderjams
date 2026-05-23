@@ -1,19 +1,19 @@
 import * as z from "zod";
+
 import {
-  clientEventPayloads,
-  serverEventPayloads,
   type ClientEvent,
   type ClientEventPayloadMap,
+  clientEventPayloads,
   type ServerEvent,
   type ServerEventPayloadMap,
+  serverEventPayloads,
 } from "./payloads";
 
-const clientBranches = (Object.keys(clientEventPayloads) as ClientEvent[]).map(
-  (event) =>
-    z.object({
-      event: z.literal(event),
-      payload: clientEventPayloads[event],
-    }),
+const clientBranches = (Object.keys(clientEventPayloads) as ClientEvent[]).map((event) =>
+  z.object({
+    event: z.literal(event),
+    payload: clientEventPayloads[event],
+  }),
 );
 
 // simplest way i could think of to keep inference with a list of schemas
@@ -38,12 +38,11 @@ export function parseClientWireMessage(
   return { ok: true, message: r.data as ClientWireMessage };
 }
 
-const serverBranches = (Object.keys(serverEventPayloads) as ServerEvent[]).map(
-  (event) =>
-    z.object({
-      event: z.literal(event),
-      payload: serverEventPayloads[event],
-    }),
+const serverBranches = (Object.keys(serverEventPayloads) as ServerEvent[]).map((event) =>
+  z.object({
+    event: z.literal(event),
+    payload: serverEventPayloads[event],
+  }),
 );
 
 export const serverWireMessageSchema = z.union(
@@ -72,8 +71,6 @@ export const wireErrorMessage = z.object({
 });
 export type WireErrorMessage = z.infer<typeof wireErrorMessage>;
 
-export const outboundWsMessageSchema = wireErrorMessage.or(
-  serverWireMessageSchema,
-);
+export const outboundWsMessageSchema = wireErrorMessage.or(serverWireMessageSchema);
 
 export type OutboundWsMessage = z.infer<typeof outboundWsMessageSchema>;

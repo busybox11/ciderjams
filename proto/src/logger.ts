@@ -47,7 +47,7 @@ export function createLogger(project: string, scope?: string): Logger {
   function formatArgs(args: unknown[]) {
     if (hasConsoleColors()) {
       return [
-        "%c" + base + "%c" + scopePart + "%c" + close,
+        `%c${base}%c${scopePart}%c${close}`,
         PREFIX_COLOR,
         `color:${scopeColor}`,
         PREFIX_COLOR,
@@ -65,7 +65,7 @@ export function createLogger(project: string, scope?: string): Logger {
     debug: (...args) => console.debug(...formatArgs(args)),
     assert: (condition: boolean, message: string, ...args: unknown[]) => {
       if (!condition) {
-        console.error(...formatArgs(["Assertion failed: " + message, ...args]));
+        console.error(...formatArgs([`Assertion failed: ${message}`, ...args]));
       }
     },
   };
