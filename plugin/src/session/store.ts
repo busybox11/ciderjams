@@ -33,7 +33,7 @@ export const useJamStore = defineStore("jam-store", () => {
   const isHost = () => jamHostSession.value !== null;
 
   const inboundSync = createJamStoreInboundSync({
-    getMusicKit: () => MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose | null,
+    getMusicKit: () => MusicKit.getInstance() ?? null,
     getQueue: () => lastQueueState.value,
     getPlayer: () => lastPlayerState.value,
     isHost,
@@ -100,7 +100,8 @@ export const useJamStore = defineStore("jam-store", () => {
     useSharePlayStore().activate();
 
     const client = await getConnectedSocket();
-    const mk = MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose;
+    const mk = MusicKit.getInstance();
+    if (!mk) throw new Error("MusicKit is not available");
 
     jamHostSession.value = startJamHostSession({
       socket: client,
@@ -120,7 +121,8 @@ export const useJamStore = defineStore("jam-store", () => {
     useSharePlayStore().activate();
 
     const client = await getConnectedSocket();
-    const mk = MusicKit.getInstance() as MusicKit.MusicKitInstanceLoose;
+    const mk = MusicKit.getInstance();
+    if (!mk) throw new Error("MusicKit is not available");
 
     guestActions.value?.stop();
     guestActions.value = new JamGuestActions(

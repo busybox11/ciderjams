@@ -5,11 +5,11 @@ import type {
   QueueStateSchema,
 } from "@ciderjams/proto";
 import type { CiderSyncSocket } from "../../api/client";
-import type { SharePlayHostAdapterHooks } from "../../playback/adapter";
+import type { SharePlayHostAdapterHooks } from "../../shareplay/adapter";
 import type { JamHostPlayerAdapter } from "./player-adapter";
 
 import { log } from "../../cider/logger";
-import { jamQueueCatalogIds } from "../../musickit/payloads";
+import { isSameCatalogIdOrder, jamQueueCatalogIds } from "../../musickit/payloads";
 
 export interface JamHostSyncSource {
   start(hooks: SharePlayHostAdapterHooks): void;
@@ -51,9 +51,10 @@ type JamHostSharedSlices = {
 };
 
 function isSameQueueCatalogOrder(last: QueueStateSchema, next: QueueSetPayload): boolean {
-  const a = jamQueueCatalogIds(last);
-  const b = next.map((e) => e.itemCatalogId);
-  return a.length === b.length && a.every((id, i) => id === b[i]);
+  return isSameCatalogIdOrder(
+    jamQueueCatalogIds(last),
+    next.map((e) => e.itemCatalogId),
+  );
 }
 
 const PLAYBACK_STATE_GUARDS: [

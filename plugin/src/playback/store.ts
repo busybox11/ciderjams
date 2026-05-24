@@ -7,7 +7,7 @@ import {
   SharePlayInhibitor,
   type SharePlayPublishedMediaState,
   type SharePlaySyncInput,
-} from "./inhibitor";
+} from "../shareplay/guest/inhibitor";
 
 const log = createLogger("plugin", "playback/store");
 
@@ -27,7 +27,6 @@ export interface SharePlayStore {
 export const useSharePlayStore = defineStore("shareplay", (): SharePlayStore => {
   const active = ref(false);
 
-  /** last payload published to MusicKit after a successful `syncFromServer` */
   const lastMediaPayload = ref<SharePlayPublishedMediaState | null>(null);
   const inhibitor = shallowRef<SharePlayInhibitor | null>(null);
 

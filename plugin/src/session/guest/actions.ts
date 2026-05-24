@@ -16,7 +16,7 @@ import {
   musicKitQueueCatalogIds,
   playbackPositionMs,
 } from "../../musickit/payloads";
-import { subscribeMusicKitEvent } from "../../playback/bridge";
+import { subscribeMusicKitEvent } from "../../musickit/runtime/events";
 
 const log = createLogger("plugin", "session/guest/actions");
 

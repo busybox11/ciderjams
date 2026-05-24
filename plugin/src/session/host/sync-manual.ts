@@ -1,4 +1,4 @@
-import type { SharePlayHostAdapterHooks } from "../../playback/adapter";
+import type { SharePlayHostAdapterHooks } from "../../shareplay/adapter";
 import type { JamHostSyncSource } from "./session";
 
 /** Host pushes queue/playback only when `trigger*` is called (debug UI). */

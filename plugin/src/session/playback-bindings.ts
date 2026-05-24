@@ -1,8 +1,10 @@
 import type { PlayerStateSchema, QueueStateSchema } from "@ciderjams/proto";
 import type { JamHostSessionHandle } from "./host/session";
 
+import { jamPlaybackToSharePlayPayload } from "@ciderjams/proto";
+
 import { useSharePlayStore } from "../playback/store";
-import { createJamInboundSync, jamPlaybackToSharePlayPayload } from "./sync/inbound";
+import { createJamInboundSync } from "./sync/inbound";
 
 export function createJamStoreInboundSync(deps: {
   getMusicKit: () => MusicKit.MusicKitInstanceLoose | null;
