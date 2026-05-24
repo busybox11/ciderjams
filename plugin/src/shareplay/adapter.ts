@@ -1,4 +1,5 @@
-import type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
+import type { SharePlaySyncInput } from "@ciderjams/proto";
+import type { SharePlayPublishedMediaState } from "./types";
 
 export interface SharePlayHostAdapterHooks {
   onSyncQueue?: () => void;

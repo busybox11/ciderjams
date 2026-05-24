@@ -1,12 +1,8 @@
 import { createLogger } from "@ciderjams/proto";
 
-import {
-  getMusicKitAppDispatcher,
-  type MusicKitWithCiderSharePlay,
-  subscribeDispatcher,
-} from "./bridge";
+import { getMusicKitAppDispatcher, subscribeDispatcher } from "../../musickit/runtime/dispatcher";
 
-const log = createLogger("plugin", "playback/inhibitor-inject");
+const log = createLogger("plugin", "shareplay/guest/inject");
 
 type PatchedSkipMethod = "skipToNextItem" | "skipToPreviousItem";
 
@@ -14,7 +10,7 @@ export class MusicKitSharePlayInject {
   private originalMethods = new Map<string, { obj: unknown; prop: string; original: unknown }>();
   private dispatcherCleanups: (() => void)[] = [];
 
-  install(music: MusicKitWithCiderSharePlay): void {
+  install(music: MusicKit.MusicKitInstanceLoose): void {
     music._sharePlay = {
       id: "cider-jams-session",
       mediaState: {
@@ -59,10 +55,13 @@ export class MusicKitSharePlayInject {
     this.patch(music, "skipToPreviousItem", forceSkip);
   }
 
-  eject(music: MusicKitWithCiderSharePlay | null): void {
+  eject(music: MusicKit.MusicKitInstanceLoose | null): void {
     this.originalMethods.forEach(({ obj, prop, original }, key) => {
       log.debug("restoring original method", key);
-      (obj as Record<string, unknown>)[prop] = original;
+      const patchable = obj as MusicKit.MusicKitInstanceLoose;
+      if (prop === "skipToNextItem")
+        patchable.skipToNextItem = original as typeof patchable.skipToNextItem;
+      else patchable.skipToPreviousItem = original as typeof patchable.skipToPreviousItem;
     });
     this.originalMethods.clear();
 
@@ -76,26 +75,26 @@ export class MusicKitSharePlayInject {
   }
 
   private patch(
-    obj: MusicKitWithCiderSharePlay,
+    obj: MusicKit.MusicKitInstanceLoose,
     prop: PatchedSkipMethod,
     wrapper: (
       original: (...args: unknown[]) => Promise<unknown>,
       ...args: unknown[]
     ) => Promise<unknown>,
   ) {
-    const original = (obj as Record<string, unknown>)[prop];
+    const original = obj[prop];
     if (typeof original !== "function") return;
-    const key = `${(obj as { constructor?: { name?: string } }).constructor?.name ?? "object"}::${prop}`;
+    const key = `${obj.constructor?.name ?? "object"}::${prop}`;
     this.originalMethods.set(key, { obj, prop, original });
-    (obj as Record<string, unknown>)[prop] = (...args: unknown[]) =>
+    const patched = (...args: unknown[]) =>
       wrapper(original.bind(obj) as (...a: unknown[]) => Promise<unknown>, ...args);
+    if (prop === "skipToNextItem") obj.skipToNextItem = patched;
+    else obj.skipToPreviousItem = patched;
   }
 }
 
-function wrapPlayActivityHandler(music: MusicKitWithCiderSharePlay): void {
-  const playActivity = (music as MusicKit.MusicKitInstance).services?.playActivity as
-    | { handleEvent?: (a: string, b: unknown) => unknown }
-    | undefined;
+function wrapPlayActivityHandler(music: MusicKit.MusicKitInstanceLoose): void {
+  const playActivity = music.services?.playActivity;
   if (!playActivity?.handleEvent) return;
 
   const originalHandler = playActivity.handleEvent;

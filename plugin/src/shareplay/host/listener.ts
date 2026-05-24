@@ -1,4 +1,4 @@
-import type { ISharePlayHostAdapter, SharePlayHostAdapterHooks } from "./adapter";
+import type { ISharePlayHostAdapter, SharePlayHostAdapterHooks } from "../adapter";
 
 import { createLogger } from "@ciderjams/proto";
 
@@ -6,12 +6,11 @@ import {
   INTERNAL_PLUGIN_QUEUE_SYNC_EVENTS,
   INTERNAL_PLUGIN_SUBSCRIBE_EVENTS,
   internalPluginEvents,
-} from "../cider/events";
-import { subscribeMusicKitEvent } from "./bridge";
+} from "../../cider/events";
+import { subscribeMusicKitEvent } from "../../musickit/runtime/events";
 
-const log = createLogger("plugin", "playback/host-listener");
+const log = createLogger("plugin", "shareplay/host/listener");
 
-/** Item list changes only; index moves use PLAYBACK_SYNC_EVENTS → player.host.sync */
 export const QUEUE_SYNC_EVENTS: string[] = ["queueItemsDidChange", "queuePositionDidChange"];
 
 export const PLAYBACK_TIME_EVENTS: string[] = ["playbackTimeDidChange"];
@@ -41,7 +40,6 @@ const MK_SUBSCRIBE_EVENTS: string[] = [
 ];
 
 export type SharePlayHostOptions = {
-  // deprecated, moved to inject() hooks
   onSyncQueue?: () => void;
   onSyncPlayback?: () => void;
 };
@@ -60,7 +58,6 @@ export class SharePlayHost implements ISharePlayHostAdapter {
     private readonly options: SharePlayHostOptions = {},
   ) {}
 
-  /** skip playback pushes while applying server-driven play/pause locally */
   public suppressOutgoingPlaybackSync(durationMs = 750): void {
     this.suppressOutgoingPlaybackSyncUntil = Date.now() + durationMs;
     if (this.playbackSyncTimer) clearTimeout(this.playbackSyncTimer);
@@ -71,7 +68,6 @@ export class SharePlayHost implements ISharePlayHostAdapter {
     return Date.now() < this.suppressOutgoingPlaybackSyncUntil;
   }
 
-  /** debounced queue push — never suppressed so reorders always reach the server */
   private triggerHostStateSync() {
     if (this.hostStateSyncTimer) clearTimeout(this.hostStateSyncTimer);
     this.hostStateSyncTimer = setTimeout(() => {
@@ -98,8 +94,6 @@ export class SharePlayHost implements ISharePlayHostAdapter {
 
     for (const event of MK_SUBSCRIBE_EVENTS) {
       const handler = (..._args: unknown[]) => {
-        // log.debug("handleEvent", event, ..._args);
-
         if (QUEUE_SYNC_EVENTS.includes(event)) {
           log.debug("triggerHostStateSync (queue)");
           this.triggerHostStateSync();
@@ -117,8 +111,6 @@ export class SharePlayHost implements ISharePlayHostAdapter {
       this.eventCleanups.push(subscribeMusicKitEvent(this.music, event, handler));
     }
 
-    // ew ugly ew but it works for now so dont criticise me or i will cry
-    // thank u
     for (const event of INTERNAL_PLUGIN_SUBSCRIBE_EVENTS) {
       const handler = (..._args: unknown[]) => {
         log.debug("handleInternalPluginEvent", event, ..._args);

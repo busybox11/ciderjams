@@ -9,6 +9,7 @@
     "./entry/*": "./src/entry/*",
     "./musickit/*": "./src/musickit/*",
     "./playback/*": "./src/playback/*",
+    "./shareplay/*": "./src/shareplay/*",
     "./session/*": "./src/session/*",
     "./ui/*": "./src/ui/*"
   },

@@ -1,22 +1,22 @@
-import type { ISharePlayGuestAdapter, SharePlayGuestAdapterHooks } from "./adapter";
-import type { MusicKitWithCiderSharePlay } from "./bridge";
-import type { SharePlaySyncInput } from "./types";
+import type { SharePlaySyncInput } from "@ciderjams/proto";
+import type { ISharePlayGuestAdapter, SharePlayGuestAdapterHooks } from "../adapter";
 
-import { createLogger } from "@ciderjams/proto";
+import { createLogger, sharePlaySyncInputSchema } from "@ciderjams/proto";
 
-import { MusicKitSharePlayInject } from "./inhibitor-inject";
-import { SharePlayServerSync } from "./inhibitor-sync";
+import { MusicKitSharePlayInject } from "./inject";
+import { SharePlayServerSync } from "./sync";
 
-export type { SharePlayPublishedMediaState, SharePlaySyncInput } from "./types";
+export type { SharePlaySyncInput } from "@ciderjams/proto";
+export type { SharePlayPublishedMediaState } from "../types";
 
-export * from "./adapter";
+export * from "../adapter";
 
-const log = createLogger("plugin", "playback/inhibitor");
+const log = createLogger("plugin", "shareplay/guest/inhibitor");
 
 export type SharePlayHooks = SharePlayGuestAdapterHooks;
 
 export class SharePlayInhibitor implements ISharePlayGuestAdapter {
-  private music: MusicKitWithCiderSharePlay | null = null;
+  private music: MusicKit.MusicKitInstanceLoose | null = null;
   private currentHooks: SharePlayGuestAdapterHooks;
   private applyingServerSync = false;
   private suppressGuestActionsUntil = 0;
@@ -31,13 +31,12 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     this.currentHooks = hooks;
   }
 
-  /** @returns false if MusicKit was not available */
   public inject(hooks?: SharePlayGuestAdapterHooks): boolean {
     if (hooks) {
       this.currentHooks = hooks;
     }
     log.debug("injecting");
-    const mk = MusicKit.getInstance() as MusicKitWithCiderSharePlay | undefined;
+    const mk = MusicKit.getInstance();
     log.debug("music", mk);
     if (!mk) return false;
 
@@ -50,7 +49,6 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     return true;
   }
 
-  /** Remove all patches and restore original behavior */
   public eject() {
     log.debug("ejecting");
     this.mkInject.eject(this.music);
@@ -84,7 +82,6 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
     return this.applyingServerSync || Date.now() < this.suppressGuestActionsUntil;
   }
 
-  /** Ignore local MusicKit control events while applying server state. */
   public bumpGuestActionSuppress(durationMs = 750): void {
     this.suppressGuestActionsUntil = Math.max(
       this.suppressGuestActionsUntil,
@@ -98,8 +95,8 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
       return;
     }
     log.debug("triggering mock sync");
-    const { mockSharePlayData } = await import("./fixtures/mock-sync");
-    const parsed = JSON.parse(mockSharePlayData) as SharePlaySyncInput;
+    const { mockSharePlayData } = await import("../fixtures/mock-sync");
+    const parsed = sharePlaySyncInputSchema.parse(JSON.parse(mockSharePlayData));
     void this.syncFromServer(parsed);
   }
 }
