@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { type Ref, ref, type ShallowRef, shallowRef } from "vue";
 
-import { createLogger } from "@ciderjams/proto";
+import { createLogger, type RoomStateSchema } from "@ciderjams/proto";
 
 import {
   SharePlayInhibitor,
@@ -21,6 +21,7 @@ export interface SharePlayStore {
     serverData: SharePlaySyncInput,
   ) => ReturnType<SharePlayInhibitor["syncFromServer"]> | undefined;
   bumpGuestActionSuppress: (durationMs?: number) => void;
+  updateRoom: (room: RoomStateSchema) => void;
   triggerMockSync: () => void;
 }
 
@@ -64,6 +65,10 @@ export const useSharePlayStore = defineStore("shareplay", (): SharePlayStore => 
     inhibitor.value?.bumpGuestActionSuppress(durationMs);
   }
 
+  function updateRoom(room: RoomStateSchema) {
+    inhibitor.value?.updateRoom(room);
+  }
+
   function triggerMockSync() {
     inhibitor.value?.triggerMockSync();
   }
@@ -76,6 +81,7 @@ export const useSharePlayStore = defineStore("shareplay", (): SharePlayStore => 
     deactivate,
     syncFromServer,
     bumpGuestActionSuppress,
+    updateRoom,
     triggerMockSync,
   };
 });

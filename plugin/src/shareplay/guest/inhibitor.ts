@@ -1,4 +1,4 @@
-import type { SharePlaySyncInput } from "@ciderjams/proto";
+import type { RoomStateSchema, SharePlaySyncInput } from "@ciderjams/proto";
 import type { ISharePlayGuestAdapter, SharePlayGuestAdapterHooks } from "../adapter";
 
 import { createLogger, sharePlaySyncInputSchema } from "@ciderjams/proto";
@@ -29,6 +29,10 @@ export class SharePlayInhibitor implements ISharePlayGuestAdapter {
 
   constructor(private readonly hooks: SharePlayHooks = {}) {
     this.currentHooks = hooks;
+  }
+
+  public updateRoom(room: RoomStateSchema): void {
+    if (this.music) this.mkInject.updateRoom(this.music, room);
   }
 
   public inject(hooks?: SharePlayGuestAdapterHooks): boolean {

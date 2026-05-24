@@ -92,6 +92,7 @@ export const useJamStore = defineStore("jam-store", () => {
     }
 
     currentJam.value = transition.next;
+    useSharePlayStore().updateRoom(transition.next);
   }
 
   async function createJam() {

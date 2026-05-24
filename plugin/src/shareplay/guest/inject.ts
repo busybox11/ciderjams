@@ -1,6 +1,9 @@
+import type { RoomStateSchema } from "@ciderjams/proto";
+
 import { createLogger } from "@ciderjams/proto";
 
 import { getMusicKitAppDispatcher, subscribeDispatcher } from "../../musickit/runtime/dispatcher";
+import { applyRoomToCiderSharePlay, createCiderSharePlayShell } from "./shell";
 
 const log = createLogger("plugin", "shareplay/guest/inject");
 
@@ -10,26 +13,8 @@ export class MusicKitSharePlayInject {
   private originalMethods = new Map<string, { obj: unknown; prop: string; original: unknown }>();
   private dispatcherCleanups: (() => void)[] = [];
 
-  install(music: MusicKit.MusicKitInstanceLoose): void {
-    music._sharePlay = {
-      id: "cider-jams-session",
-      mediaState: {
-        capabilities: {
-          autoPlayControl: true,
-          repeatControl: true,
-          shuffleControl: true,
-          volumeControl: true,
-        },
-      },
-      participants: [
-        { id: "1", name: "rain capsule" },
-        { id: "2", name: "breyy" },
-        { id: "3", name: "Hortense" },
-      ],
-      checkCapability: () => true,
-      shouldUpdate: () => true,
-      lastKnownElapsedTime: 0,
-    };
+  install(music: MusicKit.MusicKitInstanceLoose, room?: RoomStateSchema | null): void {
+    music._sharePlay = createCiderSharePlayShell(room);
 
     wrapPlayActivityHandler(music);
     music.playbackMode = 1; // MIXED_CONTENT
@@ -53,6 +38,14 @@ export class MusicKitSharePlayInject {
 
     this.patch(music, "skipToNextItem", forceSkip);
     this.patch(music, "skipToPreviousItem", forceSkip);
+  }
+
+  updateRoom(music: MusicKit.MusicKitInstanceLoose, room: RoomStateSchema): void {
+    if (music._sharePlay) {
+      applyRoomToCiderSharePlay(music._sharePlay, room);
+      return;
+    }
+    music._sharePlay = createCiderSharePlayShell(room, 0);
   }
 
   eject(music: MusicKit.MusicKitInstanceLoose | null): void {
