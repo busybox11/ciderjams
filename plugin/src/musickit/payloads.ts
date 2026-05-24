@@ -87,6 +87,14 @@ export function isSameCatalogIdOrder(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
+/** Same catalog IDs, any order (reorder-only queue updates). */
+export function isSameCatalogIdMultiset(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((id, i) => id === sortedB[i]);
+}
+
 type JamQueueMetaEntry = {
   itemCatalogId: string;
   queueEntryId?: string;
